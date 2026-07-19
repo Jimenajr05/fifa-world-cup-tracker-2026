@@ -104,3 +104,47 @@ export const buscarSeleccionPorNombre = (nombre: string) =>
   SELECCIONES_REFERENCIA.find((s) => s.name === nombre)
 
 export const urlBanderaPorCodigo = (code: string) => `https://flagcdn.com/w160/${code}.png`
+
+// ── Catálogos para el módulo de Partidos ────────────────────────
+
+export interface EstadioRef {
+  name: string
+  city: string
+}
+
+// Sedes oficiales del Mundial 2026 (USA, México, Canadá)
+export const ESTADIOS_REFERENCIA: EstadioRef[] = [
+  { name: 'Estadio Azteca', city: 'Ciudad de México' },
+  { name: 'Estadio Akron', city: 'Guadalajara' },
+  { name: 'Estadio BBVA', city: 'Monterrey' },
+  { name: 'BC Place', city: 'Vancouver' },
+  { name: 'BMO Field', city: 'Toronto' },
+  { name: 'MetLife Stadium', city: 'Nueva York / Nueva Jersey' },
+  { name: 'AT&T Stadium', city: 'Dallas' },
+  { name: 'SoFi Stadium', city: 'Los Ángeles' },
+  { name: 'Levi\'s Stadium', city: 'San Francisco' },
+  { name: 'Arrowhead Stadium', city: 'Kansas City' },
+  { name: 'Mercedes-Benz Stadium', city: 'Atlanta' },
+  { name: 'Hard Rock Stadium', city: 'Miami' },
+  { name: 'Lincoln Financial Field', city: 'Filadelfia' },
+  { name: 'Gillette Stadium', city: 'Boston' },
+  { name: 'NRG Stadium', city: 'Houston' },
+  { name: 'Lumen Field', city: 'Seattle' },
+]
+
+export const nombresEstadios = ESTADIOS_REFERENCIA.map((e) => e.name)
+
+export const buscarEstadioPorNombre = (nombre: string) =>
+  ESTADIOS_REFERENCIA.find((e) => e.name === nombre)
+
+export const FASES = [
+  'Fase de grupos',
+  'Dieciseisavos',
+  'Octavos',
+  'Cuartos',
+  'Semifinal',
+  'Tercer lugar',
+  'Final',
+] as const
+
+export const ESTADOS_PARTIDO = ['Programado', 'En Vivo', 'Finalizado'] as const

@@ -1,0 +1,96 @@
+import {
+  collection,
+  doc,
+  addDoc,
+  updateDoc,
+  deleteDoc,
+  getDocs,
+  getDoc,
+  query,
+  where,
+  Timestamp,
+} from 'firebase/firestore'
+
+// Estructura de un partido en Firestore (colección "matches")
+export interface Match {
+  id: string
+  homeTeam: string
+  awayTeam: string
+  stage: string
+  group: string | null // solo aplica cuando stage === 'Fase de grupos'
+  stadium: string
+  city: string
+  kickoff: Timestamp
+  homeScore: number | null
+  awayScore: number | null
+  status: string
+}
+
+export type NewMatch = Omit<Match, 'id'>
+
+export const useMatches = () => {
+  const { $firestore } = useNuxtApp()
+  const matches = useState<Match[]>('matches', () => [])
+  const loading = useState<boolean>('matchesLoading', () => false)
+  const error = useState<string | null>('matchesError', () => null)
+
+  const matchesCollection = () => collection($firestore, 'matches')
+
+  // Trae los partidos, opcionalmente filtrados por fase, grupo o estado
+  const fetchMatches = async (filters?: { stage?: string; group?: string; status?: string }) => {
+    loading.value = true
+    error.value = null
+    try {
+      const clauses = []
+      if (filters?.stage) clauses.push(where('stage', '==', filters.stage))
+      if (filters?.group) clauses.push(where('group', '==', filters.group))
+      if (filters?.status) clauses.push(where('status', '==', filters.status))
+
+      const q = query(matchesCollection(), ...clauses)
+      const snap = await getDocs(q)
+      matches.value = snap.docs
+        .map((d) => ({ id: d.id, ...(d.data() as NewMatch) }))
+        .sort((a, b) => a.kickoff.toMillis() - b.kickoff.toMillis())
+    } catch (err) {
+      console.error('Error al cargar partidos:', err)
+      error.value = 'No se pudieron cargar los partidos. Intenta de nuevo.'
+    } finally {
+      loading.value = false
+    }
+  }
+
+  const fetchMatchById = async (id: string): Promise<Match | null> => {
+    try {
+      const snap = await getDoc(doc($firestore, 'matches', id))
+      if (!snap.exists()) return null
+      return { id: snap.id, ...(snap.data() as NewMatch) }
+    } catch (err) {
+      console.error('Error al cargar el partido:', err)
+      throw err
+    }
+  }
+
+  const createMatch = async (data: NewMatch) => {
+    const ref = await addDoc(matchesCollection(), data)
+    return ref.id
+  }
+
+  const updateMatch = async (id: string, data: Partial<NewMatch>) => {
+    await updateDoc(doc($firestore, 'matches', id), data)
+  }
+
+  const deleteMatch = async (id: string) => {
+    await deleteDoc(doc($firestore, 'matches', id))
+  }
+
+  return {
+    matches,
+    loading,
+    error,
+    fetchMatches,
+    fetchMatchById,
+    createMatch,
+    updateMatch,
+    deleteMatch,
+  }
+}
