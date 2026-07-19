@@ -30,6 +30,9 @@ if (import.meta.client) {
           <NuxtLink to="/" class="navbar__link">
             Inicio
           </NuxtLink>
+          <NuxtLink to="/teams" class="navbar__link">
+            Selecciones
+          </NuxtLink>
           <NuxtLink to="/profile" class="navbar__link">
             Mi perfil
           </NuxtLink>
@@ -76,6 +79,9 @@ if (import.meta.client) {
           <NuxtLink to="/" class="navbar__mobile-link" @click="mobileMenuOpen = false">
             Inicio
           </NuxtLink>
+          <NuxtLink to="/teams" class="navbar__mobile-link" @click="mobileMenuOpen = false">
+            Selecciones
+          </NuxtLink>
           <NuxtLink to="/profile" class="navbar__mobile-link" @click="mobileMenuOpen = false">
             Mi perfil
           </NuxtLink>
@@ -102,6 +108,8 @@ if (import.meta.client) {
         </p>
       </div>
     </footer>
+
+    <ConfirmDialog />
   </div>
 </template>
 

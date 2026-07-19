@@ -132,6 +132,17 @@ input, select, textarea {
   font-size: inherit;
 }
 
+/* Fuerza que el navegador dibuje los desplegables nativos (<select>) en
+   tema oscuro, ya que su lista de opciones no se puede maquetar con CSS. */
+select {
+  color-scheme: dark;
+}
+
+select option {
+  background-color: var(--bg-secondary);
+  color: var(--text-primary);
+}
+
 ul, ol {
   list-style: none;
 }
