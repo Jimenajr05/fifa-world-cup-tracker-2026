@@ -77,8 +77,19 @@ watch(() => formulario.stadium, (nombre) => {
   if (estadio) formulario.city = estadio.city
 })
 
+const errorEdicion = ref('')
+
 const guardarCambios = async () => {
   if (!match.value) return
+  errorEdicion.value = ''
+
+  const esVacio = (v: number | null) => v === null || v === undefined || (v as unknown) === ''
+  const marcadorIncompleto = esVacio(formulario.homeScore) || esVacio(formulario.awayScore)
+  if (formulario.status === 'Finalizado' && marcadorIncompleto) {
+    errorEdicion.value = 'Ingresa el marcador de ambos equipos para marcar el partido como Finalizado.'
+    return
+  }
+
   guardando.value = true
   try {
     await updateMatch(match.value.id, {
@@ -90,8 +101,8 @@ const guardarCambios = async () => {
       city: formulario.city,
       kickoff: Timestamp.fromDate(new Date(formulario.fecha)),
       status: formulario.status,
-      homeScore: formulario.homeScore === null || formulario.homeScore === undefined ? null : Number(formulario.homeScore),
-      awayScore: formulario.awayScore === null || formulario.awayScore === undefined ? null : Number(formulario.awayScore),
+      homeScore: esVacio(formulario.homeScore) ? null : Number(formulario.homeScore),
+      awayScore: esVacio(formulario.awayScore) ? null : Number(formulario.awayScore),
     })
     editando.value = false
     await cargar()
@@ -228,6 +239,7 @@ const formatearFecha = (ts: Timestamp) =>
             </select>
           </div>
         </div>
+        <p v-if="errorEdicion" class="form-error">{{ errorEdicion }}</p>
         <div class="edit-form__actions">
           <button type="submit" class="btn-edit" :disabled="guardando">
             {{ guardando ? 'Guardando...' : 'Guardar cambios' }}
@@ -464,6 +476,11 @@ select.field__input {
   background-repeat: no-repeat;
   background-position: right 14px center;
   padding-right: 36px;
+}
+
+.form-error {
+  color: #ff6b6b;
+  font-size: 0.85rem;
 }
 
 .edit-form__actions {
