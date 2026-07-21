@@ -1,20 +1,31 @@
 <script setup lang="ts">
 import { Timestamp } from 'firebase/firestore'
-import type { Match } from '~/composables/useMatches'
+import type { Match, MatchScorer } from '~/composables/useMatches'
 import { FASES, GRUPOS, ESTADOS_PARTIDO, nombresEstadios, buscarEstadioPorNombre } from '~/utils/worldCupData'
 
 const route = useRoute()
 const router = useRouter()
 const { fetchMatchById, updateMatch, deleteMatch } = useMatches()
 const { teams: equiposRegistrados, fetchTeams } = useTeams()
-const { user } = useAuth()
+const { fetchPlayersByTeam } = usePlayers()
+const { user, perfil, alternarPartidoFavorito } = useAuth()
 const { confirmar } = useConfirm()
+const { avanzarGanador } = useBracket()
+const { calcularPuntos } = usePredictions()
 
 const nombresEquiposRegistrados = computed(() => equiposRegistrados.value.map((t) => t.name).sort())
+const idDeEquipo = (nombre: string) => equiposRegistrados.value.find((t) => t.name === nombre)?.id ?? null
+
+// Goleadores: se cargan las plantillas de ambos equipos por separado para
+// poder ofrecer un select de jugadores propio de cada lado
+const jugadoresLocal = ref<{ id: string; name: string }[]>([])
+const jugadoresVisitante = ref<{ id: string; name: string }[]>([])
+const goleadores = ref<MatchScorer[]>([])
 
 const id = route.params.id as string
 
 const match = ref<Match | null>(null)
+const esFavorito = computed(() => !!match.value && (perfil.value?.partidosFavoritos.includes(match.value.id) ?? false))
 const loading = ref(false)
 const error = ref('')
 const editando = ref(false)
@@ -59,6 +70,7 @@ const cargar = async () => {
       formulario.status = resultado.status
       formulario.homeScore = resultado.homeScore
       formulario.awayScore = resultado.awayScore
+      goleadores.value = resultado.scorers ? [...resultado.scorers] : []
     }
   } catch {
     error.value = 'Ocurrió un error al cargar el partido.'
@@ -79,6 +91,53 @@ watch(() => formulario.stadium, (nombre) => {
 
 const errorEdicion = ref('')
 
+// Carga las plantillas de ambos equipos cuando se abre el formulario de edición,
+// para poblar los selects de goleadores
+const { players: jugadoresCargados } = usePlayers()
+watch(editando, async (abierto) => {
+  if (!abierto || !match.value) return
+
+  const idLocal = idDeEquipo(match.value.homeTeam)
+  if (idLocal) {
+    await fetchPlayersByTeam(idLocal)
+    jugadoresLocal.value = jugadoresCargados.value.map((p) => ({ id: p.id, name: p.name }))
+  } else {
+    jugadoresLocal.value = []
+  }
+
+  const idVisitante = idDeEquipo(match.value.awayTeam)
+  if (idVisitante) {
+    await fetchPlayersByTeam(idVisitante)
+    jugadoresVisitante.value = jugadoresCargados.value.map((p) => ({ id: p.id, name: p.name }))
+  } else {
+    jugadoresVisitante.value = []
+  }
+})
+
+const agregarGoleador = (lado: 'local' | 'visitante') => {
+  const equipoId = lado === 'local' ? idDeEquipo(formulario.homeTeam) : idDeEquipo(formulario.awayTeam)
+  if (!equipoId) return
+  goleadores.value.push({ playerId: '', playerName: '', teamId: equipoId, goals: 1 })
+}
+
+const actualizarGoleadorJugador = (index: number, playerId: string, lado: 'local' | 'visitante') => {
+  const lista = lado === 'local' ? jugadoresLocal.value : jugadoresVisitante.value
+  const jugador = lista.find((j) => j.id === playerId)
+  const goleador = goleadores.value[index]
+  if (goleador && jugador) {
+    goleador.playerId = jugador.id
+    goleador.playerName = jugador.name
+  }
+}
+
+const quitarGoleador = (index: number) => {
+  goleadores.value.splice(index, 1)
+}
+
+const goleadoresLocal = computed(() => goleadores.value.filter((g) => g.teamId === idDeEquipo(formulario.homeTeam)))
+const goleadoresVisitante = computed(() => goleadores.value.filter((g) => g.teamId === idDeEquipo(formulario.awayTeam)))
+const indiceGlobal = (g: MatchScorer) => goleadores.value.indexOf(g)
+
 const guardarCambios = async () => {
   if (!match.value) return
   errorEdicion.value = ''
@@ -92,18 +151,39 @@ const guardarCambios = async () => {
 
   guardando.value = true
   try {
+    const homeScore = esVacio(formulario.homeScore) ? null : Number(formulario.homeScore)
+    const awayScore = esVacio(formulario.awayScore) ? null : Number(formulario.awayScore)
+
     await updateMatch(match.value.id, {
       homeTeam: formulario.homeTeam,
       awayTeam: formulario.awayTeam,
+      homeTeamId: idDeEquipo(formulario.homeTeam),
+      awayTeamId: idDeEquipo(formulario.awayTeam),
       stage: formulario.stage,
       group: formulario.stage === 'Fase de grupos' ? formulario.group : null,
       stadium: formulario.stadium,
       city: formulario.city,
       kickoff: Timestamp.fromDate(new Date(formulario.fecha)),
       status: formulario.status,
-      homeScore: esVacio(formulario.homeScore) ? null : Number(formulario.homeScore),
-      awayScore: esVacio(formulario.awayScore) ? null : Number(formulario.awayScore),
+      homeScore,
+      awayScore,
+      scorers: goleadores.value.filter((g) => g.playerId), // descarta filas sin jugador seleccionado
     })
+
+    const partidoActualizado = { ...match.value, homeTeam: formulario.homeTeam, awayTeam: formulario.awayTeam, stage: formulario.stage, homeScore, awayScore, status: formulario.status }
+
+    // Calcula puntos de predicciones para CUALQUIER partido que se finalice
+    // (fase de grupos incluida, no solo eliminatoria)
+    if (formulario.status === 'Finalizado') {
+      await calcularPuntos(partidoActualizado)
+    }
+
+    // Solo los partidos de eliminatoria avanzan al bracket
+    const esEliminatoria = formulario.stage !== 'Fase de grupos'
+    if (esEliminatoria && formulario.status === 'Finalizado') {
+      await avanzarGanador(partidoActualizado)
+    }
+
     editando.value = false
     await cargar()
   } catch (err) {
@@ -177,6 +257,13 @@ const formatearFecha = (ts: Timestamp) =>
         </dl>
 
         <div v-if="user" class="match-detail__actions">
+          <button
+            class="btn-favorite"
+            :class="{ 'btn-favorite--activo': esFavorito }"
+            @click="alternarPartidoFavorito(match.id)"
+          >
+            {{ esFavorito ? '★ En favoritos' : '☆ Agregar a favoritos' }}
+          </button>
           <button class="btn-edit" @click="editando = true">Editar</button>
           <button class="btn-delete" @click="eliminar">Eliminar</button>
         </div>
@@ -240,6 +327,46 @@ const formatearFecha = (ts: Timestamp) =>
           </div>
         </div>
         <p v-if="errorEdicion" class="form-error">{{ errorEdicion }}</p>
+
+        <!-- Goleadores -->
+        <div class="scorers-section">
+          <h3 class="scorers-section__title">Goleadores</h3>
+
+          <div class="scorers-team">
+            <p class="scorers-team__label">{{ formulario.homeTeam }}</p>
+            <div v-for="g in goleadoresLocal" :key="`h-${indiceGlobal(g)}`" class="scorer-row">
+              <select
+                :value="g.playerId"
+                class="field__input"
+                @change="actualizarGoleadorJugador(indiceGlobal(g), ($event.target as HTMLSelectElement).value, 'local')"
+              >
+                <option value="" disabled>Selecciona jugador</option>
+                <option v-for="j in jugadoresLocal" :key="j.id" :value="j.id">{{ j.name }}</option>
+              </select>
+              <input v-model.number="g.goals" type="number" min="1" class="field__input scorer-row__goals" />
+              <button type="button" class="scorer-row__remove" @click="quitarGoleador(indiceGlobal(g))">✕</button>
+            </div>
+            <button type="button" class="scorers-team__add" @click="agregarGoleador('local')">+ Agregar goleador</button>
+          </div>
+
+          <div class="scorers-team">
+            <p class="scorers-team__label">{{ formulario.awayTeam }}</p>
+            <div v-for="g in goleadoresVisitante" :key="`a-${indiceGlobal(g)}`" class="scorer-row">
+              <select
+                :value="g.playerId"
+                class="field__input"
+                @change="actualizarGoleadorJugador(indiceGlobal(g), ($event.target as HTMLSelectElement).value, 'visitante')"
+              >
+                <option value="" disabled>Selecciona jugador</option>
+                <option v-for="j in jugadoresVisitante" :key="j.id" :value="j.id">{{ j.name }}</option>
+              </select>
+              <input v-model.number="g.goals" type="number" min="1" class="field__input scorer-row__goals" />
+              <button type="button" class="scorer-row__remove" @click="quitarGoleador(indiceGlobal(g))">✕</button>
+            </div>
+            <button type="button" class="scorers-team__add" @click="agregarGoleador('visitante')">+ Agregar goleador</button>
+          </div>
+        </div>
+
         <div class="edit-form__actions">
           <button type="submit" class="btn-edit" :disabled="guardando">
             {{ guardando ? 'Guardando...' : 'Guardar cambios' }}
@@ -395,6 +522,24 @@ const formatearFecha = (ts: Timestamp) =>
   display: flex;
   gap: var(--space-md);
   margin-top: var(--space-xl);
+  flex-wrap: wrap;
+}
+
+.btn-favorite {
+  padding: 10px 22px;
+  border-radius: var(--radius-md);
+  background: var(--bg-surface);
+  border: 1px solid var(--border-subtle);
+  color: var(--text-secondary);
+  font-weight: 600;
+  font-size: 0.88rem;
+  transition: all var(--transition-fast);
+}
+
+.btn-favorite--activo {
+  background: rgba(255, 214, 10, 0.1);
+  border-color: rgba(255, 214, 10, 0.3);
+  color: var(--text-gold);
 }
 
 .btn-edit {
@@ -496,5 +641,73 @@ select.field__input {
   color: var(--text-secondary);
   font-weight: 600;
   font-size: 0.88rem;
+}
+
+.scorers-section {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-lg);
+  padding-top: var(--space-md);
+  border-top: 1px solid var(--border-subtle);
+}
+
+.scorers-section__title {
+  font-size: 0.85rem;
+  font-weight: 700;
+  color: var(--text-gold);
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+}
+
+.scorers-team {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-sm);
+}
+
+.scorers-team__label {
+  font-size: 0.8rem;
+  font-weight: 600;
+  color: var(--text-secondary);
+}
+
+.scorer-row {
+  display: flex;
+  gap: var(--space-sm);
+  align-items: center;
+}
+
+.scorer-row .field__input {
+  flex: 1;
+}
+
+.scorer-row__goals {
+  flex: 0 0 70px;
+}
+
+.scorer-row__remove {
+  flex: 0 0 auto;
+  width: 28px;
+  height: 28px;
+  border-radius: 50%;
+  color: var(--text-muted);
+  background: var(--bg-surface);
+  font-size: 0.75rem;
+}
+
+.scorer-row__remove:hover {
+  color: #ff6b6b;
+  background: rgba(255, 107, 107, 0.1);
+}
+
+.scorers-team__add {
+  align-self: flex-start;
+  font-size: 0.8rem;
+  color: var(--text-gold);
+  font-weight: 600;
+}
+
+.scorers-team__add:hover {
+  text-decoration: underline;
 }
 </style>

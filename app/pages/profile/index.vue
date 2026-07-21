@@ -1,12 +1,7 @@
 <script setup lang="ts">
-const { user, perfil, cargandoPerfil, actualizarPerfil } = useAuth()
+import { nombresSelecciones } from '~/utils/worldCupData'
 
-// TODO: reemplazar por datos reales de Firestore cuando exista useTeams()
-const seleccionesDisponibles = [
-  'Argentina', 'Brasil', 'Costa Rica', 'España', 'Francia',
-  'Alemania', 'Portugal', 'México', 'Estados Unidos', 'Canadá',
-  'Japón', 'Corea del Sur', 'Marruecos', 'Inglaterra', 'Países Bajos',
-]
+const { user, perfil, cargandoPerfil, actualizarPerfil, elegirCampeon, errorCampeon } = useAuth()
 
 const nombreEditable = ref('')
 const seleccionEditable = ref<string | null>(null)
@@ -25,6 +20,22 @@ const iniciales = computed(() => {
   const base = nombreEditable.value || perfil.value?.nombre || user.value?.email || ''
   return base.trim().charAt(0).toUpperCase() || '?'
 })
+
+const puntos = computed(() => perfil.value?.puntos ?? 0)
+
+// Predicción de campeón: una vez elegida queda bloqueada
+const campeonSeleccionado = ref('')
+const guardandoCampeon = ref(false)
+
+const confirmarCampeon = async () => {
+  if (!campeonSeleccionado.value) return
+  guardandoCampeon.value = true
+  try {
+    await elegirCampeon(campeonSeleccionado.value)
+  } finally {
+    guardandoCampeon.value = false
+  }
+}
 
 const guardarCambios = async () => {
   guardando.value = true
@@ -69,11 +80,42 @@ const guardarCambios = async () => {
           <div class="profile-info">
             <h2 class="profile-title">Mi perfil</h2>
             <p class="profile-email">{{ user.email }}</p>
+            <span class="points-badge">⭐ {{ puntos }} puntos</span>
           </div>
         </div>
 
         <!-- Divider -->
         <div class="divider" />
+
+        <!-- Predicción de campeón -->
+        <div class="champion-section">
+          <p class="field__label">Predicción de campeón del torneo</p>
+          <p v-if="perfil?.campeonElegido" class="champion-locked">
+            🏆 Elegiste a <strong>{{ perfil.campeonElegido }}</strong> — esta predicción no se puede cambiar.
+          </p>
+          <div v-else class="champion-form">
+            <select v-model="campeonSeleccionado" class="field__input">
+              <option value="" disabled>Selecciona tu campeón</option>
+              <option v-for="pais in nombresSelecciones" :key="pais" :value="pais">{{ pais }}</option>
+            </select>
+            <button
+              type="button"
+              class="save-btn champion-confirm-btn"
+              :disabled="!campeonSeleccionado || guardandoCampeon"
+              @click="confirmarCampeon"
+            >
+              {{ guardandoCampeon ? 'Guardando...' : 'Confirmar campeón' }}
+            </button>
+          </div>
+          <p v-if="errorCampeon" class="form-error">{{ errorCampeon }}</p>
+        </div>
+
+        <NuxtLink to="/profile/predictions" class="predictions-link">
+          Ver mis predicciones →
+        </NuxtLink>
+        <NuxtLink to="/profile/favorites" class="predictions-link">
+          Ver mis favoritos →
+        </NuxtLink>
 
         <!-- Form -->
         <form @submit.prevent="guardarCambios" class="profile-form">
@@ -97,7 +139,7 @@ const guardarCambios = async () => {
             </label>
             <select id="seleccion" v-model="seleccionEditable" class="field__input">
               <option :value="null">Sin selección favorita</option>
-              <option v-for="pais in seleccionesDisponibles" :key="pais" :value="pais">
+              <option v-for="pais in nombresSelecciones" :key="pais" :value="pais">
                 {{ pais }}
               </option>
             </select>
@@ -236,6 +278,64 @@ const guardarCambios = async () => {
   margin-top: 2px;
   font-size: 0.82rem;
   color: var(--text-muted);
+}
+
+.points-badge {
+  display: inline-block;
+  margin-top: 8px;
+  padding: 3px 12px;
+  border-radius: 999px;
+  background: rgba(255, 214, 10, 0.1);
+  color: var(--text-gold);
+  font-size: 0.78rem;
+  font-weight: 700;
+}
+
+.champion-section {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-sm);
+  margin-bottom: var(--space-xl);
+}
+
+.champion-locked {
+  padding: 12px 16px;
+  border-radius: var(--radius-md);
+  background: rgba(255, 214, 10, 0.08);
+  border: 1px solid rgba(255, 214, 10, 0.2);
+  color: var(--text-primary);
+  font-size: 0.9rem;
+}
+
+.champion-form {
+  display: flex;
+  gap: var(--space-sm);
+  flex-wrap: wrap;
+}
+
+.champion-form .field__input {
+  flex: 1;
+  min-width: 180px;
+}
+
+.champion-confirm-btn {
+  margin-top: 0;
+  padding: 10px 20px;
+  font-size: 0.85rem;
+  flex: 0 0 auto;
+}
+
+.predictions-link {
+  display: block;
+  text-align: center;
+  margin-bottom: var(--space-lg);
+  font-size: 0.85rem;
+  color: var(--text-gold);
+  font-weight: 600;
+}
+
+.predictions-link:hover {
+  text-decoration: underline;
 }
 
 /* ── Divider ───────────────────────────────────────────────── */

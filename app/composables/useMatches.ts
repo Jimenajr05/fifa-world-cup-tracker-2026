@@ -11,11 +11,21 @@ import {
   Timestamp,
 } from 'firebase/firestore'
 
+// Un gol registrado en un partido, para poder calcular "máximo goleador"
+export interface MatchScorer {
+  playerId: string
+  playerName: string
+  teamId: string
+  goals: number
+}
+
 // Estructura de un partido en Firestore (colección "matches")
 export interface Match {
   id: string
   homeTeam: string
   awayTeam: string
+  homeTeamId?: string | null // referencia al documento del equipo local (para filtrar jugadores)
+  awayTeamId?: string | null // referencia al documento del equipo visitante
   stage: string
   group: string | null // solo aplica cuando stage === 'Fase de grupos'
   stadium: string
@@ -24,6 +34,9 @@ export interface Match {
   homeScore: number | null
   awayScore: number | null
   status: string
+  round?: number // orden de la ronda eliminatoria (0 = Dieciseisavos), ver useBracket
+  bracketPosition?: number // posición dentro del bracket de esa ronda
+  scorers?: MatchScorer[] // goleadores del partido, usados en useStatistics
 }
 
 export type NewMatch = Omit<Match, 'id'>

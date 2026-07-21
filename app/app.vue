@@ -39,9 +39,19 @@ if (import.meta.client) {
           <NuxtLink to="/groups" class="navbar__link">
             Grupos
           </NuxtLink>
+          <NuxtLink to="/bracket" class="navbar__link">
+            Llaves
+          </NuxtLink>
+          <NuxtLink to="/predictions" class="navbar__link">
+            Predicciones
+          </NuxtLink>
+          <NuxtLink to="/stats" class="navbar__link">
+            Estadísticas
+          </NuxtLink>
           <NuxtLink to="/profile" class="navbar__link">
             Mi perfil
           </NuxtLink>
+
         </nav>
 
         <!-- User area -->
@@ -93,6 +103,15 @@ if (import.meta.client) {
           </NuxtLink>
           <NuxtLink to="/groups" class="navbar__mobile-link" @click="mobileMenuOpen = false">
             Grupos
+          </NuxtLink>
+          <NuxtLink to="/bracket" class="navbar__mobile-link" @click="mobileMenuOpen = false">
+            Llaves
+          </NuxtLink>
+          <NuxtLink to="/predictions" class="navbar__mobile-link" @click="mobileMenuOpen = false">
+            Predicciones
+          </NuxtLink>
+          <NuxtLink to="/stats" class="navbar__mobile-link" @click="mobileMenuOpen = false">
+            Estadísticas
           </NuxtLink>
           <NuxtLink to="/profile" class="navbar__mobile-link" @click="mobileMenuOpen = false">
             Mi perfil

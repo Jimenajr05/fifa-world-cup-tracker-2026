@@ -10,6 +10,9 @@ const { confirmar } = useConfirm()
 
 const nombresEquiposRegistrados = computed(() => equiposRegistrados.value.map((t) => t.name).sort())
 
+// Busca el id del equipo por nombre, para poder relacionar el partido con su documento en "teams"
+const idDeEquipo = (nombre: string) => equiposRegistrados.value.find((t) => t.name === nombre)?.id ?? null
+
 const busqueda = ref('')
 const faseFiltro = ref('')
 const estadoFiltro = ref('')
@@ -90,6 +93,8 @@ const agregarPartido = async () => {
     const data: NewMatch = {
       homeTeam: nuevoPartido.homeTeam,
       awayTeam: nuevoPartido.awayTeam,
+      homeTeamId: idDeEquipo(nuevoPartido.homeTeam),
+      awayTeamId: idDeEquipo(nuevoPartido.awayTeam),
       stage: nuevoPartido.stage,
       group: nuevoPartido.stage === 'Fase de grupos' ? nuevoPartido.group : null,
       stadium: nuevoPartido.stadium,

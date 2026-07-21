@@ -15,12 +15,14 @@ const {
   updatePlayer,
   deletePlayer,
 } = usePlayers()
-const { user } = useAuth()
+const { user, perfil, alternarEquipoFavorito } = useAuth()
 const { confirmar } = useConfirm()
 
 const id = route.params.id as string
 
 const team = ref<Team | null>(null)
+
+const esFavorito = computed(() => !!team.value && (perfil.value?.equiposFavoritos.includes(team.value.id) ?? false))
 const loading = ref(false)
 const error = ref('')
 const editando = ref(false)
@@ -253,6 +255,13 @@ const eliminar = async () => {
         </dl>
 
         <div v-if="user" class="team-detail__actions">
+          <button
+            class="btn-favorite"
+            :class="{ 'btn-favorite--activo': esFavorito }"
+            @click="alternarEquipoFavorito(team.id)"
+          >
+            {{ esFavorito ? '★ En favoritos' : '☆ Agregar a favoritos' }}
+          </button>
           <button class="btn-edit" @click="editando = true">Editar</button>
           <button class="btn-delete" @click="eliminar">Eliminar</button>
         </div>
@@ -531,6 +540,24 @@ const eliminar = async () => {
   display: flex;
   gap: var(--space-md);
   margin-top: var(--space-xl);
+  flex-wrap: wrap;
+}
+
+.btn-favorite {
+  padding: 10px 22px;
+  border-radius: var(--radius-md);
+  background: var(--bg-surface);
+  border: 1px solid var(--border-subtle);
+  color: var(--text-secondary);
+  font-weight: 600;
+  font-size: 0.88rem;
+  transition: all var(--transition-fast);
+}
+
+.btn-favorite--activo {
+  background: rgba(255, 214, 10, 0.1);
+  border-color: rgba(255, 214, 10, 0.3);
+  color: var(--text-gold);
 }
 
 .btn-edit {
