@@ -3,6 +3,8 @@ import {
   doc,
   addDoc,
   updateDoc,
+  deleteDoc,
+  getDoc,
   getDocs,
   query,
   where,
@@ -37,7 +39,7 @@ const resultadoDe = (homeScore: number, awayScore: number): Resultado => {
 }
 
 export const usePredictions = () => {
-  const { $firestore } = useNuxtApp()
+  const { db: $firestore } = useFirestore()
 
   const predictions = useState<Prediction[]>('predictions', () => [])
   const loading = useState<boolean>('predictionsLoading', () => false)
@@ -103,6 +105,19 @@ export const usePredictions = () => {
     }
   }
 
+  // Elimina una predicción propia. Si ya tenía puntos otorgados, se los
+  // resta al usuario para no dejar puntaje "huérfano" en el ranking.
+  const eliminarPrediccion = async (predictionId: string) => {
+    const snap = await getDoc(doc($firestore, 'predictions', predictionId))
+    if (!snap.exists()) return
+    const pred = snap.data() as NewPrediction
+
+    if (pred.pointsEarned) {
+      await updateDoc(doc($firestore, 'users', pred.userId), { puntos: increment(-pred.pointsEarned) })
+    }
+    await deleteDoc(doc($firestore, 'predictions', predictionId))
+  }
+
   // Al finalizar un partido, calcula los puntos de todas las predicciones
   // hechas para ese partido y actualiza el total de puntos de cada usuario.
   // Usa la diferencia (delta) contra los puntos ya otorgados antes, para que
@@ -162,6 +177,7 @@ export const usePredictions = () => {
     fetchPredictionsByUser,
     fetchPredictionByMatch,
     guardarPrediccion,
+    eliminarPrediccion,
     calcularPuntos,
   }
 }
