@@ -42,7 +42,7 @@ export interface Match {
 export type NewMatch = Omit<Match, 'id'>
 
 export const useMatches = () => {
-  const { $firestore } = useNuxtApp()
+  const { db: $firestore } = useFirestore()
   const matches = useState<Match[]>('matches', () => [])
   const loading = useState<boolean>('matchesLoading', () => false)
   const error = useState<string | null>('matchesError', () => null)

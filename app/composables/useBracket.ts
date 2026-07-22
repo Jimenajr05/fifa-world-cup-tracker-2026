@@ -35,7 +35,7 @@ const siguienteRonda = (ronda: Ronda): Ronda | null => {
 }
 
 export const useBracket = () => {
-  const { $firestore } = useNuxtApp()
+  const { db: $firestore } = useFirestore()
   const { fetchStandings } = useStandings()
 
   const generando = useState<boolean>('bracketGenerando', () => false)
