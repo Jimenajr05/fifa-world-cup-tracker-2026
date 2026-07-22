@@ -22,7 +22,7 @@ export interface Player {
 export type NewPlayer = Omit<Player, 'id'>
 
 export const usePlayers = () => {
-  const { $firestore } = useNuxtApp()
+  const { db: $firestore } = useFirestore()
   const players = useState<Player[]>('players', () => [])
   const loading = useState<boolean>('playersLoading', () => false)
   const error = useState<string | null>('playersError', () => null)
@@ -47,6 +47,23 @@ export const usePlayers = () => {
     }
   }
 
+  // Trae todos los jugadores de todas las selecciones, para la búsqueda global
+  const fetchAllPlayers = async () => {
+    loading.value = true
+    error.value = null
+    try {
+      const snap = await getDocs(playersCollection())
+      players.value = snap.docs
+        .map((d) => ({ id: d.id, ...(d.data() as NewPlayer) }))
+        .sort((a, b) => a.name.localeCompare(b.name))
+    } catch (err) {
+      console.error('Error al cargar jugadores:', err)
+      error.value = 'No se pudo cargar la lista de jugadores.'
+    } finally {
+      loading.value = false
+    }
+  }
+
   const createPlayer = async (data: NewPlayer) => {
     const ref = await addDoc(playersCollection(), data)
     return ref.id
@@ -65,6 +82,7 @@ export const usePlayers = () => {
     loading,
     error,
     fetchPlayersByTeam,
+    fetchAllPlayers,
     createPlayer,
     updatePlayer,
     deletePlayer,
