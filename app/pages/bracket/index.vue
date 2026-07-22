@@ -8,9 +8,11 @@ const { user } = useAuth()
 // porque no alimenta a ninguna otra ronda (solo se juega junto a la Final).
 const columnas = ref<{ ronda: string; partidos: Match[] }[]>([])
 const loadingBracket = ref(false)
+const errorCarga = ref('')
 
 const cargarBracket = async () => {
   loadingBracket.value = true
+  errorCarga.value = ''
   try {
     const rondas = [...RONDAS, 'Tercer lugar']
     const resultado = []
@@ -19,6 +21,9 @@ const cargarBracket = async () => {
       resultado.push({ ronda, partidos })
     }
     columnas.value = resultado
+  } catch (err) {
+    console.error('Error al cargar el bracket:', err)
+    errorCarga.value = 'No se pudo cargar el bracket. Intenta de nuevo.'
   } finally {
     loadingBracket.value = false
   }
@@ -47,14 +52,19 @@ const nombreEquipo = (nombre: string) => (nombre === 'Por definir' ? 'Por defini
         </h1>
         <p class="bracket-subtitle">Bracket generado automáticamente a partir de la fase de grupos</p>
       </div>
-      <button
-        v-if="user && !hayDieciseisavos"
-        class="btn-add"
-        :disabled="generando"
-        @click="generar"
-      >
-        {{ generando ? 'Generando...' : 'Generar Dieciseisavos' }}
-      </button>
+      <div class="bracket-header__actions">
+        <button class="btn-refetch" :disabled="loadingBracket" @click="cargarBracket">
+          Actualizar
+        </button>
+        <button
+          v-if="user && !hayDieciseisavos"
+          class="btn-add"
+          :disabled="generando"
+          @click="generar"
+        >
+          {{ generando ? 'Generando...' : 'Generar Dieciseisavos' }}
+        </button>
+      </div>
     </header>
 
     <p v-if="error" class="form-error">{{ error }}</p>
@@ -63,6 +73,12 @@ const nombreEquipo = (nombre: string) => (nombre === 'Por definir' ? 'Por defini
     <div v-if="loadingBracket" class="state-box">
       <div class="spinner" />
       <p class="state-text">Cargando bracket...</p>
+    </div>
+
+    <!-- Estado: error -->
+    <div v-else-if="errorCarga" class="state-box">
+      <p class="state-text">{{ errorCarga }}</p>
+      <button class="btn-refetch" @click="cargarBracket">Reintentar</button>
     </div>
 
     <!-- Estado: vacío -->
@@ -131,6 +147,12 @@ const nombreEquipo = (nombre: string) => (nombre === 'Por definir' ? 'Por defini
   margin-top: 4px;
 }
 
+.bracket-header__actions {
+  display: flex;
+  align-items: center;
+  gap: var(--space-md);
+}
+
 .btn-add {
   padding: 10px 20px;
   border-radius: var(--radius-md);
@@ -146,6 +168,27 @@ const nombreEquipo = (nombre: string) => (nombre === 'Por definir' ? 'Por defini
 }
 
 .btn-add:disabled {
+  opacity: 0.6;
+  cursor: not-allowed;
+}
+
+.btn-refetch {
+  padding: 10px 18px;
+  border-radius: var(--radius-md);
+  background: var(--bg-surface);
+  border: 1px solid var(--border-subtle);
+  color: var(--text-secondary);
+  font-size: 0.85rem;
+  font-weight: 600;
+  transition: all var(--transition-fast);
+}
+
+.btn-refetch:hover:not(:disabled) {
+  color: var(--text-primary);
+  border-color: var(--border-glass);
+}
+
+.btn-refetch:disabled {
   opacity: 0.6;
   cursor: not-allowed;
 }

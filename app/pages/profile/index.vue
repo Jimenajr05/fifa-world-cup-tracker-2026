@@ -1,7 +1,11 @@
 <script setup lang="ts">
 import { nombresSelecciones } from '~/utils/worldCupData'
 
-const { user, perfil, cargandoPerfil, actualizarPerfil, elegirCampeon, errorCampeon } = useAuth()
+const { user, perfil, cargandoPerfil, actualizarPerfil, elegirCampeon, errorCampeon, cargarPerfil } = useAuth()
+
+const recargarPerfil = () => {
+  if (user.value) cargarPerfil(user.value.uid)
+}
 
 const nombreEditable = ref('')
 const seleccionEditable = ref<string | null>(null)
@@ -67,6 +71,12 @@ const guardarCambios = async () => {
       <div v-else-if="cargandoPerfil" class="state-box">
         <div class="spinner" />
         <p class="state-text">Cargando perfil...</p>
+      </div>
+
+      <!-- Estado: vacío/error (no se pudo cargar el documento del perfil) -->
+      <div v-else-if="!perfil" class="state-box">
+        <p class="state-text">No se pudo cargar tu perfil.</p>
+        <button class="btn-refetch" @click="recargarPerfil">Reintentar</button>
       </div>
 
       <!-- Estado: perfil cargado -->
@@ -225,6 +235,16 @@ const guardarCambios = async () => {
   border-top-color: var(--gold-start);
   border-radius: 50%;
   animation: spin 0.8s linear infinite;
+}
+
+.btn-refetch {
+  padding: 10px 18px;
+  border-radius: var(--radius-md);
+  background: var(--bg-surface);
+  border: 1px solid var(--border-subtle);
+  color: var(--text-secondary);
+  font-size: 0.85rem;
+  font-weight: 600;
 }
 
 /* ── Profile Header ────────────────────────────────────────── */
