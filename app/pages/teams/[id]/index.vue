@@ -1,22 +1,24 @@
 <script setup lang="ts">
 import type { Team } from '~/composables/useTeams'
-import type { NewPlayer, Player } from '~/composables/usePlayers'
-import { CONFEDERACIONES, GRUPOS, POSICIONES_JUGADOR, CLUBES_REFERENCIA, nombresSelecciones, buscarSeleccionPorNombre, urlBanderaPorCodigo } from '~/utils/worldCupData'
+import { CONFEDERACIONES, GRUPOS, nombresSelecciones, buscarSeleccionPorNombre, urlBanderaPorCodigo } from '~/utils/worldCupData'
 
 const route = useRoute()
 const router = useRouter()
 const { fetchTeamById, updateTeam, deleteTeam } = useTeams()
-const {
-  players,
-  loading: cargandoJugadores,
-  error: errorJugadores,
-  fetchPlayersByTeam,
-  createPlayer,
-  updatePlayer,
-  deletePlayer,
-} = usePlayers()
 const { user, perfil, alternarEquipoFavorito } = useAuth()
 const { confirmar } = useConfirm()
+const { subiendo, errorSubida, subirArchivo } = useFirebaseStorage()
+
+const subirBanderaPersonalizada = async (evento: Event) => {
+  const archivo = (evento.target as HTMLInputElement).files?.[0]
+  if (!archivo) return
+  try {
+    const ruta = `flags/${Date.now()}-${archivo.name}`
+    formulario.flag = await subirArchivo(ruta, archivo)
+  } catch {
+    // errorSubida ya queda seteado dentro de useFirebaseStorage
+  }
+}
 
 const id = route.params.id as string
 
@@ -61,10 +63,7 @@ const cargar = async () => {
   }
 }
 
-onMounted(() => {
-  cargar()
-  fetchPlayersByTeam(id)
-})
+onMounted(cargar)
 
 // Al elegir el nombre en el combo box, autocompleta bandera y confederación
 watch(() => formulario.name, (nombre) => {
@@ -74,106 +73,6 @@ watch(() => formulario.name, (nombre) => {
     formulario.confederation = seleccion.confederation
   }
 })
-
-// ── Plantilla de jugadores ──────────────────────────────────
-const mostrarFormularioJugador = ref(false)
-const creandoJugador = ref(false)
-const errorFormularioJugador = ref('')
-
-const nuevoJugador = reactive<Omit<NewPlayer, 'teamId'>>({
-  name: '',
-  number: 1,
-  position: '',
-  club: '',
-})
-
-const resetFormularioJugador = () => {
-  nuevoJugador.name = ''
-  nuevoJugador.number = 1
-  nuevoJugador.position = ''
-  nuevoJugador.club = ''
-  errorFormularioJugador.value = ''
-}
-
-const agregarJugador = async () => {
-  if (!nuevoJugador.name || !nuevoJugador.position || !nuevoJugador.club) {
-    errorFormularioJugador.value = 'Nombre, posición y club son obligatorios.'
-    return
-  }
-  creandoJugador.value = true
-  errorFormularioJugador.value = ''
-  try {
-    await createPlayer({ ...nuevoJugador, number: Number(nuevoJugador.number), teamId: id })
-    resetFormularioJugador()
-    mostrarFormularioJugador.value = false
-    await fetchPlayersByTeam(id)
-  } catch (err) {
-    console.error('Error al agregar jugador:', err)
-    errorFormularioJugador.value = 'No se pudo guardar el jugador.'
-  } finally {
-    creandoJugador.value = false
-  }
-}
-
-// Edición de un jugador existente
-const edicionJugadorId = ref<string | null>(null)
-const guardandoEdicionJugador = ref(false)
-const errorEdicionJugador = ref('')
-
-const formularioEdicionJugador = reactive<Omit<NewPlayer, 'teamId'>>({
-  name: '',
-  number: 1,
-  position: POSICIONES_JUGADOR[0],
-  club: '',
-})
-
-const iniciarEdicionJugador = (player: Player) => {
-  edicionJugadorId.value = player.id
-  formularioEdicionJugador.name = player.name
-  formularioEdicionJugador.number = player.number
-  formularioEdicionJugador.position = player.position
-  formularioEdicionJugador.club = player.club
-  errorEdicionJugador.value = ''
-}
-
-const cancelarEdicionJugador = () => {
-  edicionJugadorId.value = null
-  errorEdicionJugador.value = ''
-}
-
-const guardarEdicionJugador = async () => {
-  if (!edicionJugadorId.value) return
-  if (!formularioEdicionJugador.name) {
-    errorEdicionJugador.value = 'El nombre del jugador es obligatorio.'
-    return
-  }
-  guardandoEdicionJugador.value = true
-  errorEdicionJugador.value = ''
-  try {
-    await updatePlayer(edicionJugadorId.value, {
-      ...formularioEdicionJugador,
-      number: Number(formularioEdicionJugador.number),
-    })
-    edicionJugadorId.value = null
-    await fetchPlayersByTeam(id)
-  } catch (err) {
-    console.error('Error al editar jugador:', err)
-    errorEdicionJugador.value = 'No se pudo guardar el jugador.'
-  } finally {
-    guardandoEdicionJugador.value = false
-  }
-}
-
-const eliminarJugador = async (playerId: string) => {
-  const confirmado = await confirmar('¿Eliminar este jugador de la plantilla?')
-  if (!confirmado) return
-  try {
-    await deletePlayer(playerId)
-    await fetchPlayersByTeam(id)
-  } catch (err) {
-    console.error('Error al eliminar jugador:', err)
-  }
-}
 
 const guardarCambios = async () => {
   if (!team.value) return
@@ -286,6 +185,11 @@ const eliminar = async () => {
         <div class="field">
           <label class="field__label">Bandera</label>
           <input v-model="formulario.flag" type="text" class="field__input" placeholder="Se completa automáticamente" readonly />
+          <label class="upload-btn">
+            {{ subiendo ? 'Subiendo...' : '📷 Subir imagen propia' }}
+            <input type="file" accept="image/*" hidden :disabled="subiendo" @change="subirBanderaPersonalizada" />
+          </label>
+          <p v-if="errorSubida" class="form-error">{{ errorSubida }}</p>
         </div>
         <div class="field">
           <label class="field__label">Entrenador</label>
@@ -312,108 +216,15 @@ const eliminar = async () => {
 
       <div class="divider" />
 
-      <!-- Plantilla de jugadores -->
-      <div class="squad">
-        <div class="squad__header">
-          <h2 class="squad__title">Plantilla de jugadores</h2>
-          <button v-if="user" class="btn-add-player" @click="mostrarFormularioJugador = !mostrarFormularioJugador">
-            {{ mostrarFormularioJugador ? 'Cancelar' : '+ Agregar jugador' }}
-          </button>
+      <!-- Enlace a la plantilla (ruta anidada /teams/[id]/players) -->
+      <NuxtLink :to="`/teams/${id}/players`" class="squad-link glass">
+        <span class="squad-link__icon">👕</span>
+        <div class="squad-link__text">
+          <p class="squad-link__title">Plantilla de jugadores</p>
+          <p class="squad-link__sub">Ver, agregar, editar y eliminar jugadores de {{ team.name }}</p>
         </div>
-
-        <Transition name="fade">
-          <form v-if="mostrarFormularioJugador" class="player-form glass" @submit.prevent="agregarJugador">
-            <div class="player-form__grid">
-              <div class="field">
-                <label class="field__label">Nombre</label>
-                <input v-model="nuevoJugador.name" type="text" class="field__input" placeholder="Nombre del jugador" required />
-              </div>
-              <div class="field">
-                <label class="field__label">Número</label>
-                <input v-model.number="nuevoJugador.number" type="number" min="1" max="99" class="field__input" />
-              </div>
-              <div class="field">
-                <label class="field__label">Posición</label>
-                <select v-model="nuevoJugador.position" class="field__input" required>
-                  <option value="" disabled>Selecciona una posición</option>
-                  <option v-for="p in POSICIONES_JUGADOR" :key="p" :value="p">{{ p }}</option>
-                </select>
-              </div>
-              <div class="field">
-                <label class="field__label">Club</label>
-                <select v-model="nuevoJugador.club" class="field__input">
-                  <option value="" disabled>Selecciona un club</option>
-                  <option v-for="club in CLUBES_REFERENCIA" :key="club" :value="club">{{ club }}</option>
-                </select>
-              </div>
-            </div>
-            <p v-if="errorFormularioJugador" class="form-error">{{ errorFormularioJugador }}</p>
-            <button type="submit" class="btn-edit" :disabled="creandoJugador">
-              {{ creandoJugador ? 'Guardando...' : 'Guardar jugador' }}
-            </button>
-          </form>
-        </Transition>
-
-        <!-- Estado: cargando -->
-        <div v-if="cargandoJugadores" class="state-box">
-          <div class="spinner" />
-          <p class="state-text">Cargando plantilla...</p>
-        </div>
-
-        <!-- Estado: error -->
-        <div v-else-if="errorJugadores" class="state-box">
-          <p class="state-text">{{ errorJugadores }}</p>
-        </div>
-
-        <!-- Estado: vacío -->
-        <div v-else-if="players.length === 0" class="state-box">
-          <p class="state-text">Esta selección aún no tiene jugadores registrados.</p>
-        </div>
-
-        <!-- Listado -->
-        <ul v-else class="player-list">
-          <li v-for="player in players" :key="player.id" class="player-item">
-            <!-- Modo edición -->
-            <form
-              v-if="edicionJugadorId === player.id"
-              class="player-edit-form"
-              @submit.prevent="guardarEdicionJugador"
-            >
-              <div class="player-edit-form__grid">
-                <input v-model="formularioEdicionJugador.name" type="text" class="field__input" placeholder="Nombre" required />
-                <input v-model.number="formularioEdicionJugador.number" type="number" min="1" max="99" class="field__input" />
-                <select v-model="formularioEdicionJugador.position" class="field__input">
-                  <option v-for="p in POSICIONES_JUGADOR" :key="p" :value="p">{{ p }}</option>
-                </select>
-                <select v-model="formularioEdicionJugador.club" class="field__input">
-                  <option value="" disabled>Selecciona un club</option>
-                  <option v-for="club in CLUBES_REFERENCIA" :key="club" :value="club">{{ club }}</option>
-                </select>
-              </div>
-              <p v-if="errorEdicionJugador" class="form-error">{{ errorEdicionJugador }}</p>
-              <div class="player-edit-form__actions">
-                <button type="submit" class="btn-edit" :disabled="guardandoEdicionJugador">
-                  {{ guardandoEdicionJugador ? 'Guardando...' : 'Guardar' }}
-                </button>
-                <button type="button" class="btn-cancel" @click="cancelarEdicionJugador">Cancelar</button>
-              </div>
-            </form>
-
-            <!-- Modo visualización -->
-            <template v-else>
-              <span class="player-item__number">{{ player.number }}</span>
-              <div class="player-item__info">
-                <p class="player-item__name">{{ player.name }}</p>
-                <p class="player-item__meta">{{ player.position }} · {{ player.club || 'Sin club' }}</p>
-              </div>
-              <div v-if="user" class="player-item__actions">
-                <button class="player-item__edit" title="Editar" @click="iniciarEdicionJugador(player)">✎</button>
-                <button class="player-item__delete" title="Eliminar" @click="eliminarJugador(player.id)">✕</button>
-              </div>
-            </template>
-          </li>
-        </ul>
-      </div>
+        <span class="squad-link__arrow">→</span>
+      </NuxtLink>
     </div>
   </div>
 </template>
@@ -640,6 +451,32 @@ select.field__input {
   gap: var(--space-md);
 }
 
+.form-error {
+  color: #ff6b6b;
+  font-size: 0.85rem;
+}
+
+.upload-btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  margin-top: 6px;
+  padding: 8px 14px;
+  border-radius: var(--radius-sm);
+  background: var(--bg-surface);
+  border: 1px solid var(--border-subtle);
+  color: var(--text-secondary);
+  font-size: 0.78rem;
+  font-weight: 600;
+  cursor: pointer;
+  transition: all var(--transition-fast);
+}
+
+.upload-btn:hover {
+  color: var(--text-primary);
+  border-color: var(--border-glass);
+}
+
 .btn-cancel {
   padding: 10px 22px;
   border-radius: var(--radius-md);
@@ -650,155 +487,42 @@ select.field__input {
   font-size: 0.88rem;
 }
 
-/* ── Plantilla de jugadores ────────────────────────────────── */
-.squad {
-  display: flex;
-  flex-direction: column;
-  gap: var(--space-lg);
-}
-
-.squad__header {
+/* ── Enlace a la plantilla ─────────────────────────────────── */
+.squad-link {
   display: flex;
   align-items: center;
-  justify-content: space-between;
   gap: var(--space-md);
-  flex-wrap: wrap;
-}
-
-.squad__title {
-  font-size: 1.15rem;
-  font-weight: 700;
-}
-
-.btn-add-player {
-  padding: 8px 16px;
-  border-radius: var(--radius-md);
-  background: var(--gold-gradient);
-  color: #0a0e1a;
-  font-weight: 700;
-  font-size: 0.82rem;
-}
-
-.player-form {
   padding: var(--space-lg);
   border-radius: var(--radius-lg);
-  display: flex;
-  flex-direction: column;
-  gap: var(--space-md);
+  transition: transform var(--transition-fast), border-color var(--transition-fast);
 }
 
-.player-form__grid {
-  display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(160px, 1fr));
-  gap: var(--space-md);
+.squad-link:hover {
+  transform: translateY(-2px);
+  border-color: rgba(255, 214, 10, 0.25);
 }
 
-.form-error {
-  color: #ff6b6b;
-  font-size: 0.85rem;
+.squad-link__icon {
+  font-size: 1.6rem;
 }
 
-.player-list {
-  display: flex;
-  flex-direction: column;
-  gap: var(--space-sm);
-}
-
-.player-item {
-  display: flex;
-  align-items: center;
-  gap: var(--space-md);
-  padding: var(--space-md);
-  border-radius: var(--radius-md);
-  background: var(--bg-surface);
-  border: 1px solid var(--border-subtle);
-}
-
-.player-item__number {
-  width: 32px;
-  height: 32px;
-  border-radius: 50%;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  background: var(--gold-gradient);
-  color: #0a0e1a;
-  font-weight: 800;
-  font-size: 0.85rem;
-  flex-shrink: 0;
-}
-
-.player-item__info {
+.squad-link__text {
   flex: 1;
 }
 
-.player-item__name {
-  font-size: 0.95rem;
-  font-weight: 600;
+.squad-link__title {
+  font-size: 1rem;
+  font-weight: 700;
 }
 
-.player-item__meta {
-  font-size: 0.78rem;
+.squad-link__sub {
+  font-size: 0.8rem;
   color: var(--text-muted);
+  margin-top: 2px;
 }
 
-.player-item__actions {
-  display: flex;
-  gap: 8px;
-  flex-shrink: 0;
-}
-
-.player-item__delete,
-.player-item__edit {
-  width: 26px;
-  height: 26px;
-  border-radius: 50%;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  color: var(--text-muted);
-  background: var(--bg-glass);
-  font-size: 0.75rem;
-  flex-shrink: 0;
-  transition: all var(--transition-fast);
-}
-
-.player-item__delete:hover {
-  color: #ff6b6b;
-  background: rgba(255, 107, 107, 0.1);
-}
-
-.player-item__edit:hover {
+.squad-link__arrow {
+  font-size: 1.2rem;
   color: var(--text-gold);
-  background: rgba(255, 214, 10, 0.1);
-}
-
-.player-edit-form {
-  display: flex;
-  flex-direction: column;
-  gap: var(--space-md);
-  width: 100%;
-}
-
-.player-edit-form__grid {
-  display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(140px, 1fr));
-  gap: var(--space-sm);
-}
-
-.player-edit-form__actions {
-  display: flex;
-  gap: var(--space-sm);
-}
-
-.fade-enter-active,
-.fade-leave-active {
-  transition: opacity 0.25s ease, transform 0.25s ease;
-}
-
-.fade-enter-from,
-.fade-leave-to {
-  opacity: 0;
-  transform: translateY(-6px);
 }
 </style>
