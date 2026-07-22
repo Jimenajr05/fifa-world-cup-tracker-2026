@@ -1,5 +1,6 @@
 <script setup lang="ts">
 const { user, loginWithGoogle } = useAuth()
+const { resumen, loading: cargandoDashboard, error: errorDashboard, cargarDashboard } = useDashboard()
 
 const features = [
   {
@@ -15,6 +16,21 @@ const features = [
     desc: 'Consulta horarios, sedes y resultados al instante.',
   },
 ]
+
+const tarjetas = computed(() => {
+  if (!resumen.value) return []
+  return [
+    { etiqueta: 'Partidos jugados', valor: resumen.value.partidosJugados, icono: '⚽' },
+    { etiqueta: 'Partidos pendientes', valor: resumen.value.partidosPendientes, icono: '🗓️' },
+    { etiqueta: 'Goles anotados', valor: resumen.value.golesAnotados, icono: '🥅' },
+    { etiqueta: 'Selecciones clasificadas', valor: resumen.value.seleccionesClasificadas, icono: '🏆' },
+    { etiqueta: 'Predicciones realizadas', valor: resumen.value.totalPredicciones, icono: '🔮' },
+  ]
+})
+
+watch(user, (u) => {
+  if (u) cargarDashboard()
+}, { immediate: true })
 </script>
 
 <template>
@@ -78,8 +94,63 @@ const features = [
       </div>
     </section>
 
-    <!-- ── Features ───────────────────────────────────────── -->
-    <section class="features">
+    <!-- ── Dashboard (usuario con sesión iniciada) ─────────── -->
+    <section v-if="user" class="dashboard">
+      <div class="dashboard__header">
+        <h2 class="dashboard__title">
+          <span class="text-gold-gradient">Resumen</span> del torneo
+        </h2>
+        <button class="btn-refetch" @click="cargarDashboard" :disabled="cargandoDashboard">
+          Actualizar
+        </button>
+      </div>
+
+      <!-- Estado: cargando -->
+      <div v-if="cargandoDashboard" class="state-box">
+        <div class="spinner" />
+        <p class="state-text">Calculando indicadores...</p>
+      </div>
+
+      <!-- Estado: error -->
+      <div v-else-if="errorDashboard" class="state-box">
+        <p class="state-text">{{ errorDashboard }}</p>
+        <button class="btn-refetch" @click="cargarDashboard">Reintentar</button>
+      </div>
+
+      <!-- Estado: vacío -->
+      <div v-else-if="!resumen || (resumen.partidosJugados === 0 && resumen.partidosPendientes === 0)" class="state-box">
+        <p class="state-text">Todavía no hay partidos registrados para mostrar indicadores.</p>
+        <NuxtLink to="/matches" class="btn-refetch">Ir a partidos</NuxtLink>
+      </div>
+
+      <!-- Contenido -->
+      <template v-else>
+        <div class="stats-grid">
+          <div v-for="t in tarjetas" :key="t.etiqueta" class="stat-card glass animate-slide-up">
+            <span class="stat-card__icon">{{ t.icono }}</span>
+            <span class="stat-card__value">{{ t.valor }}</span>
+            <span class="stat-card__label">{{ t.etiqueta }}</span>
+          </div>
+        </div>
+
+        <div class="highlight-card glass-strong animate-slide-up delay-1">
+          <h3 class="highlight-card__title">Usuario con mayor puntaje</h3>
+          <div v-if="resumen.usuarioDestacado" class="highlight-card__body">
+            <span class="highlight-card__avatar">
+              {{ resumen.usuarioDestacado.nombre.charAt(0).toUpperCase() }}
+            </span>
+            <div>
+              <p class="highlight-card__name">{{ resumen.usuarioDestacado.nombre }}</p>
+              <p class="highlight-card__points">{{ resumen.usuarioDestacado.puntos }} puntos</p>
+            </div>
+          </div>
+          <p v-else class="state-text">Todavía nadie ha sumado puntos con predicciones.</p>
+        </div>
+      </template>
+    </section>
+
+    <!-- ── Features (usuario sin sesión) ───────────────────── -->
+    <section v-else class="features">
       <div
         v-for="(feat, i) in features"
         :key="feat.title"
@@ -286,6 +357,151 @@ const features = [
 .hero__welcome-sub {
   font-size: 0.88rem;
   color: var(--text-secondary);
+}
+
+/* ── Dashboard ─────────────────────────────────────────────── */
+.dashboard {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-xl);
+  width: 100%;
+}
+
+.dashboard__header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-md);
+  flex-wrap: wrap;
+}
+
+.dashboard__title {
+  font-size: clamp(1.4rem, 3vw, 1.8rem);
+  font-weight: 800;
+  letter-spacing: -0.02em;
+}
+
+.btn-refetch {
+  padding: 10px 18px;
+  border-radius: var(--radius-md);
+  background: var(--bg-surface);
+  border: 1px solid var(--border-subtle);
+  color: var(--text-secondary);
+  font-size: 0.85rem;
+  font-weight: 600;
+  transition: all var(--transition-fast);
+}
+
+.btn-refetch:hover:not(:disabled) {
+  color: var(--text-primary);
+  border-color: var(--border-glass);
+}
+
+.btn-refetch:disabled {
+  opacity: 0.6;
+  cursor: not-allowed;
+}
+
+.state-box {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: var(--space-md);
+  padding: var(--space-2xl) 0;
+  text-align: center;
+}
+
+.state-text {
+  color: var(--text-secondary);
+  font-size: 0.95rem;
+}
+
+.spinner {
+  width: 36px;
+  height: 36px;
+  border: 3px solid var(--border-glass);
+  border-top-color: var(--gold-start);
+  border-radius: 50%;
+  animation: spin 0.8s linear infinite;
+}
+
+.stats-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
+  gap: var(--space-lg);
+}
+
+.stat-card {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: var(--space-sm);
+  padding: var(--space-xl);
+  border-radius: var(--radius-lg);
+  text-align: center;
+  transition: transform var(--transition-base), box-shadow var(--transition-base);
+}
+
+.stat-card:hover {
+  transform: translateY(-4px);
+  box-shadow: var(--shadow-md);
+}
+
+.stat-card__icon {
+  font-size: 1.8rem;
+}
+
+.stat-card__value {
+  font-size: 2rem;
+  font-weight: 800;
+  color: var(--text-gold);
+}
+
+.stat-card__label {
+  font-size: 0.8rem;
+  color: var(--text-secondary);
+}
+
+.highlight-card {
+  padding: var(--space-xl);
+  border-radius: var(--radius-lg);
+}
+
+.highlight-card__title {
+  font-size: 1.05rem;
+  font-weight: 700;
+  margin-bottom: var(--space-lg);
+}
+
+.highlight-card__body {
+  display: flex;
+  align-items: center;
+  gap: var(--space-lg);
+}
+
+.highlight-card__avatar {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 52px;
+  height: 52px;
+  border-radius: 50%;
+  background: var(--gold-gradient);
+  color: #0a0e1a;
+  font-weight: 800;
+  font-size: 1.3rem;
+  flex-shrink: 0;
+}
+
+.highlight-card__name {
+  font-size: 1.05rem;
+  font-weight: 700;
+}
+
+.highlight-card__points {
+  font-size: 0.85rem;
+  color: var(--text-gold);
+  margin-top: 2px;
 }
 
 /* ── Feature Cards ─────────────────────────────────────────── */
