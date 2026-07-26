@@ -2,6 +2,7 @@
 import { Timestamp } from 'firebase/firestore'
 import type { NewMatch } from '~/composables/useMatches'
 import { FASES, GRUPOS, ESTADOS_PARTIDO, nombresEstadios, buscarEstadioPorNombre } from '~/utils/worldCupData'
+import { mensajeError } from '~/utils/validation'
 
 const { matches, loading, error, fetchMatches, createMatch, deleteMatch } = useMatches()
 const { teams: equiposRegistrados, fetchTeams } = useTeams()
@@ -110,20 +111,24 @@ const agregarPartido = async () => {
     await cargar()
   } catch (err) {
     console.error('Error al crear partido:', err)
-    errorFormulario.value = 'No se pudo guardar el partido.'
+    errorFormulario.value = mensajeError(err, 'No se pudo guardar el partido.')
   } finally {
     creando.value = false
   }
 }
 
+const errorEliminar = ref('')
+
 const eliminarPartido = async (id: string) => {
   const confirmado = await confirmar('¿Eliminar este partido? Esta acción no se puede deshacer.')
   if (!confirmado) return
+  errorEliminar.value = ''
   try {
     await deleteMatch(id)
     await cargar()
   } catch (err) {
     console.error('Error al eliminar partido:', err)
+    errorEliminar.value = mensajeError(err, 'No se pudo eliminar el partido.')
   }
 }
 
@@ -247,6 +252,8 @@ const formatearFecha = (ts: { toDate: () => Date }) =>
     <div v-else-if="partidosFiltrados.length === 0" class="state-box">
       <p class="state-text">No se encontraron partidos con esos filtros.</p>
     </div>
+
+    <p v-if="errorEliminar" class="form-error">{{ errorEliminar }}</p>
 
     <!-- Listado -->
     <div v-else class="matches-list">

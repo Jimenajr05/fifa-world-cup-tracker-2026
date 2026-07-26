@@ -1,5 +1,6 @@
 <script setup lang="ts">
 import type { Match } from '~/composables/useMatches'
+import { mensajeError } from '~/utils/validation'
 
 const route = useRoute()
 const router = useRouter()
@@ -72,7 +73,7 @@ const guardar = async () => {
     setTimeout(() => { mensajeExito.value = false }, 3000)
   } catch (err) {
     console.error('Error al guardar predicción:', err)
-    errorFormulario.value = 'No se pudo guardar tu predicción.'
+    errorFormulario.value = mensajeError(err, 'No se pudo guardar tu predicción.')
   } finally {
     guardando.value = false
   }

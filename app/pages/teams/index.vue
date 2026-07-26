@@ -1,6 +1,7 @@
 <script setup lang="ts">
 import type { NewTeam } from '~/composables/useTeams'
-import { CONFEDERACIONES, GRUPOS, nombresSelecciones, buscarSeleccionPorNombre, urlBanderaPorCodigo } from '~/utils/worldCupData'
+import { CONFEDERACIONES, GRUPOS, nombresSelecciones, buscarSeleccionPorNombre, urlBanderaPorCodigo, ENTRENADORES_POR_SELECCION, OTRO_ENTRENADOR } from '~/utils/worldCupData'
+import { mensajeError } from '~/utils/validation'
 
 const { teams, loading, error, fetchTeams, createTeam, deleteTeam } = useTeams()
 const { user } = useAuth()
@@ -21,6 +22,23 @@ const nuevoEquipo = reactive<NewTeam>({
   coach: '',
   confederation: '',
   fifaRanking: 1,
+})
+
+// Combo box de entrenador: muestra el entrenador REAL 2026 de la selección
+// elegida (si está clasificada y confirmado), más "Otro" para escribirlo a mano
+const entrenadorSeleccionado = ref('')
+const escribirEntrenadorPropio = computed(() => entrenadorSeleccionado.value === OTRO_ENTRENADOR)
+const entrenadoresDisponibles = computed(() => {
+  const real = ENTRENADORES_POR_SELECCION[nuevoEquipo.name]
+  return real ? [real, OTRO_ENTRENADOR] : [OTRO_ENTRENADOR]
+})
+watch(entrenadorSeleccionado, (valor) => {
+  nuevoEquipo.coach = valor === OTRO_ENTRENADOR ? '' : valor
+})
+// Si cambia la selección elegida y el entrenador ya no corresponde, se resetea
+watch(() => nuevoEquipo.name, () => {
+  entrenadorSeleccionado.value = ''
+  nuevoEquipo.coach = ''
 })
 
 const cargar = () => fetchTeams()
@@ -63,6 +81,7 @@ const resetFormulario = () => {
   nuevoEquipo.coach = ''
   nuevoEquipo.confederation = ''
   nuevoEquipo.fifaRanking = 1
+  entrenadorSeleccionado.value = ''
   errorFormulario.value = ''
 }
 
@@ -80,7 +99,7 @@ const agregarEquipo = async () => {
     await cargar()
   } catch (err) {
     console.error('Error al crear selección:', err)
-    errorFormulario.value = 'No se pudo guardar la selección.'
+    errorFormulario.value = mensajeError(err, 'No se pudo guardar la selección.')
   } finally {
     creando.value = false
   }
@@ -99,14 +118,18 @@ const subirBanderaPersonalizada = async (evento: Event) => {
   }
 }
 
+const errorEliminar = ref('')
+
 const eliminarEquipo = async (id: string) => {
   const confirmado = await confirmar('¿Eliminar esta selección? Esta acción no se puede deshacer.')
   if (!confirmado) return
+  errorEliminar.value = ''
   try {
     await deleteTeam(id)
     await cargar()
   } catch (err) {
     console.error('Error al eliminar selección:', err)
+    errorEliminar.value = mensajeError(err, 'No se pudo eliminar la selección.')
   }
 }
 </script>
@@ -154,7 +177,17 @@ const eliminarEquipo = async (id: string) => {
           </div>
           <div class="field">
             <label class="field__label">Entrenador</label>
-            <input v-model="nuevoEquipo.coach" type="text" class="field__input" placeholder="Nombre del DT" />
+            <select v-model="entrenadorSeleccionado" class="field__input" :disabled="!nuevoEquipo.name">
+              <option value="" disabled>{{ nuevoEquipo.name ? 'Selecciona un entrenador' : 'Primero elige la selección' }}</option>
+              <option v-for="e in entrenadoresDisponibles" :key="e" :value="e">{{ e }}</option>
+            </select>
+            <input
+              v-if="escribirEntrenadorPropio"
+              v-model="nuevoEquipo.coach"
+              type="text"
+              class="field__input"
+              placeholder="Escribe el nombre del entrenador"
+            />
           </div>
           <div class="field">
             <label class="field__label">Confederación</label>
@@ -212,6 +245,8 @@ const eliminarEquipo = async (id: string) => {
     <div v-else-if="equiposFiltrados.length === 0" class="state-box">
       <p class="state-text">No se encontraron selecciones con esos filtros.</p>
     </div>
+
+    <p v-if="errorEliminar" class="form-error">{{ errorEliminar }}</p>
 
     <!-- Listado -->
     <div v-else class="teams-grid">
