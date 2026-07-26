@@ -18,11 +18,30 @@ const {
 const { user, perfil, alternarEquipoFavorito } = useAuth()
 const { confirmar } = useConfirm()
 
-const id = route.params.id as string
+// Agrupa la plantilla por posición, respetando el orden natural de POSICIONES_JUGADOR
+// (Portero, Defensa, Mediocampista, Delantero), y dentro de cada grupo ordena por dorsal.
+const PLURAL_POSICION: Record<string, string> = {
+  Portero: 'Porteros',
+  Defensa: 'Defensas',
+  Mediocampista: 'Mediocampistas',
+  Delantero: 'Delanteros',
+}
 
-const team = ref<Team | null>(null)
+const jugadoresPorPosicion = computed(() => {
+  return POSICIONES_JUGADOR.map((posicion) => ({
+    posicion,
+    etiqueta: PLURAL_POSICION[posicion] ?? posicion,
+    jugadores: players.value
+      .filter((p) => p.position === posicion)
+      .sort((a, b) => a.number - b.number),
+  })).filter((grupo) => grupo.jugadores.length > 0)
+})
 
 const esFavorito = computed(() => !!team.value && (perfil.value?.equiposFavoritos.includes(team.value.id) ?? false))
+
+const id = route.params.id as string
+const team = ref<Team | null>(null)
+
 const loading = ref(false)
 const error = ref('')
 const editando = ref(false)
@@ -370,49 +389,54 @@ const eliminar = async () => {
           <p class="state-text">Esta selección aún no tiene jugadores registrados.</p>
         </div>
 
-        <!-- Listado -->
-        <ul v-else class="player-list">
-          <li v-for="player in players" :key="player.id" class="player-item">
-            <!-- Modo edición -->
-            <form
-              v-if="edicionJugadorId === player.id"
-              class="player-edit-form"
-              @submit.prevent="guardarEdicionJugador"
-            >
-              <div class="player-edit-form__grid">
-                <input v-model="formularioEdicionJugador.name" type="text" class="field__input" placeholder="Nombre" required />
-                <input v-model.number="formularioEdicionJugador.number" type="number" min="1" max="99" class="field__input" />
-                <select v-model="formularioEdicionJugador.position" class="field__input">
-                  <option v-for="p in POSICIONES_JUGADOR" :key="p" :value="p">{{ p }}</option>
-                </select>
-                <select v-model="formularioEdicionJugador.club" class="field__input">
-                  <option value="" disabled>Selecciona un club</option>
-                  <option v-for="club in CLUBES_REFERENCIA" :key="club" :value="club">{{ club }}</option>
-                </select>
-              </div>
-              <p v-if="errorEdicionJugador" class="form-error">{{ errorEdicionJugador }}</p>
-              <div class="player-edit-form__actions">
-                <button type="submit" class="btn-edit" :disabled="guardandoEdicionJugador">
-                  {{ guardandoEdicionJugador ? 'Guardando...' : 'Guardar' }}
-                </button>
-                <button type="button" class="btn-cancel" @click="cancelarEdicionJugador">Cancelar</button>
-              </div>
-            </form>
+        <!-- Listado agrupado por posición -->
+        <div v-else class="player-groups">
+          <div v-for="grupo in jugadoresPorPosicion" :key="grupo.posicion" class="player-group">
+            <h3 class="player-group__title">{{ grupo.etiqueta }}</h3>
+            <ul class="player-list">
+              <li v-for="player in grupo.jugadores" :key="player.id" class="player-item">
+                <!-- Modo edición -->
+                <form
+                  v-if="edicionJugadorId === player.id"
+                  class="player-edit-form"
+                  @submit.prevent="guardarEdicionJugador"
+                >
+                  <div class="player-edit-form__grid">
+                    <input v-model="formularioEdicionJugador.name" type="text" class="field__input" placeholder="Nombre" required />
+                    <input v-model.number="formularioEdicionJugador.number" type="number" min="1" max="99" class="field__input" />
+                    <select v-model="formularioEdicionJugador.position" class="field__input">
+                      <option v-for="p in POSICIONES_JUGADOR" :key="p" :value="p">{{ p }}</option>
+                    </select>
+                    <select v-model="formularioEdicionJugador.club" class="field__input">
+                      <option value="" disabled>Selecciona un club</option>
+                      <option v-for="club in CLUBES_REFERENCIA" :key="club" :value="club">{{ club }}</option>
+                    </select>
+                  </div>
+                  <p v-if="errorEdicionJugador" class="form-error">{{ errorEdicionJugador }}</p>
+                  <div class="player-edit-form__actions">
+                    <button type="submit" class="btn-edit" :disabled="guardandoEdicionJugador">
+                      {{ guardandoEdicionJugador ? 'Guardando...' : 'Guardar' }}
+                    </button>
+                    <button type="button" class="btn-cancel" @click="cancelarEdicionJugador">Cancelar</button>
+                  </div>
+                </form>
 
-            <!-- Modo visualización -->
-            <template v-else>
-              <span class="player-item__number">{{ player.number }}</span>
-              <div class="player-item__info">
-                <p class="player-item__name">{{ player.name }}</p>
-                <p class="player-item__meta">{{ player.position }} · {{ player.club || 'Sin club' }}</p>
-              </div>
-              <div v-if="user" class="player-item__actions">
-                <button class="player-item__edit" title="Editar" @click="iniciarEdicionJugador(player)">✎</button>
-                <button class="player-item__delete" title="Eliminar" @click="eliminarJugador(player.id)">✕</button>
-              </div>
-            </template>
-          </li>
-        </ul>
+                <!-- Modo visualización -->
+                <template v-else>
+                  <span class="player-item__number">{{ player.number }}</span>
+                  <div class="player-item__info">
+                    <p class="player-item__name">{{ player.name }}</p>
+                    <p class="player-item__meta">{{ player.position }} · {{ player.club || 'Sin club' }}</p>
+                  </div>
+                  <div v-if="user" class="player-item__actions">
+                    <button class="player-item__edit" title="Editar" @click="iniciarEdicionJugador(player)">✎</button>
+                    <button class="player-item__delete" title="Eliminar" @click="eliminarJugador(player.id)">✕</button>
+                  </div>
+                </template>
+              </li>
+            </ul>
+          </div>
+        </div>
       </div>
     </div>
   </div>
@@ -696,6 +720,21 @@ select.field__input {
 .form-error {
   color: #ff6b6b;
   font-size: 0.85rem;
+}
+
+.player-groups {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-lg);
+}
+
+.player-group__title {
+  font-size: 0.75rem;
+  font-weight: 700;
+  color: var(--text-gold);
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  margin-bottom: var(--space-sm);
 }
 
 .player-list {

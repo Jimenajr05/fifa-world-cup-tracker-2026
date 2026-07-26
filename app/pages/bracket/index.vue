@@ -4,8 +4,6 @@ import type { Match } from '~/composables/useMatches'
 const { RONDAS, generando, error, generarDieciseisavos, fetchRonda } = useBracket()
 const { user } = useAuth()
 
-// Cada columna del bracket: las 5 rondas normales + "Tercer lugar" aparte,
-// porque no alimenta a ninguna otra ronda (solo se juega junto a la Final).
 const columnas = ref<{ ronda: string; partidos: Match[] }[]>([])
 const loadingBracket = ref(false)
 
@@ -36,6 +34,37 @@ const generar = async () => {
 }
 
 const nombreEquipo = (nombre: string) => (nombre === 'Por definir' ? 'Por definir' : nombre)
+
+// Divide cada ronda (menos Final) en mitad izquierda/derecha del cuadro,
+// usando bracketPosition: las posiciones bajas alimentan la mitad izquierda,
+// las altas la derecha. Como el avance del bracket respeta ese mismo orden
+// ronda tras ronda, la división se mantiene consistente hasta la Semifinal.
+type Lado = 'izquierda' | 'derecha'
+const construirMitad = (lado: Lado) => {
+  const rondasSinFinal = RONDAS.filter((r) => r !== 'Final')
+  return rondasSinFinal.map((ronda) => {
+    const partidos = columnas.value.find((c) => c.ronda === ronda)?.partidos ?? []
+    const mitad = partidos.length / 2
+    const filtrados = partidos.filter((p) =>
+      lado === 'izquierda' ? (p.bracketPosition ?? 0) < mitad : (p.bracketPosition ?? 0) >= mitad,
+    )
+    return { ronda, partidos: filtrados }
+  })
+}
+
+// Izquierda: Dieciseisavos → Semifinal (se va acercando al centro)
+const mitadIzquierda = computed(() => construirMitad('izquierda'))
+// Derecha: Semifinal → Dieciseisavos (espejo, para que el centro quede junto a la Final)
+const mitadDerecha = computed(() => [...construirMitad('derecha')].reverse())
+
+const finalMatch = computed(() => columnas.value.find((c) => c.ronda === 'Final')?.partidos[0] ?? null)
+const tercerLugarMatch = computed(() => columnas.value.find((c) => c.ronda === 'Tercer lugar')?.partidos[0] ?? null)
+
+const campeon = computed(() => {
+  if (!finalMatch.value || finalMatch.value.status !== 'Finalizado') return null
+  if (finalMatch.value.homeScore === null || finalMatch.value.awayScore === null) return null
+  return finalMatch.value.homeScore > finalMatch.value.awayScore ? finalMatch.value.homeTeam : finalMatch.value.awayTeam
+})
 </script>
 
 <template>
@@ -72,33 +101,91 @@ const nombreEquipo = (nombre: string) => (nombre === 'Por definir' ? 'Por defini
       </p>
     </div>
 
-    <!-- Bracket -->
-    <div v-else class="bracket-board">
-      <div v-for="columna in columnas" :key="columna.ronda" class="bracket-column">
-        <h2 class="bracket-column__title">{{ columna.ronda }}</h2>
-
-        <p v-if="columna.partidos.length === 0" class="bracket-column__empty">
-          Aún no definido
-        </p>
-
-        <NuxtLink
-          v-for="partido in columna.partidos"
-          :key="partido.id"
-          :to="`/matches/${partido.id}`"
-          class="bracket-match glass animate-slide-up"
-        >
-          <div class="bracket-match__row">
-            <span class="bracket-match__team">{{ nombreEquipo(partido.homeTeam) }}</span>
-            <span class="bracket-match__score">{{ partido.homeScore ?? '-' }}</span>
+    <!-- Cuadro completo -->
+    <div v-else class="bracket-tree">
+      <!-- Mitad izquierda -->
+      <div class="bracket-half">
+        <div v-for="grupo in mitadIzquierda" :key="`i-${grupo.ronda}`" class="bracket-round">
+          <span class="bracket-round__label">{{ grupo.ronda }}</span>
+          <div class="bracket-round__matches">
+            <NuxtLink
+              v-for="partido in grupo.partidos"
+              :key="partido.id"
+              :to="`/matches/${partido.id}`"
+              class="bracket-match glass"
+            >
+              <div class="bracket-match__row">
+                <span class="bracket-match__team">{{ nombreEquipo(partido.homeTeam) }}</span>
+                <span class="bracket-match__score">{{ partido.homeScore ?? '-' }}</span>
+              </div>
+              <div class="bracket-match__row">
+                <span class="bracket-match__team">{{ nombreEquipo(partido.awayTeam) }}</span>
+                <span class="bracket-match__score">{{ partido.awayScore ?? '-' }}</span>
+              </div>
+            </NuxtLink>
           </div>
-          <div class="bracket-match__row">
-            <span class="bracket-match__team">{{ nombreEquipo(partido.awayTeam) }}</span>
-            <span class="bracket-match__score">{{ partido.awayScore ?? '-' }}</span>
+        </div>
+      </div>
+
+      <!-- Centro: Campeón + Final + Tercer lugar -->
+      <div class="bracket-center">
+        <span class="bracket-center__label">Campeón del mundo</span>
+        <div class="bracket-trophy">
+          <span class="bracket-trophy__icon">🏆</span>
+          <span class="bracket-trophy__team">{{ campeon ?? '¿Quién será?' }}</span>
+        </div>
+
+        <div v-if="finalMatch" class="bracket-round">
+          <span class="bracket-round__label">Final</span>
+          <NuxtLink :to="`/matches/${finalMatch.id}`" class="bracket-match bracket-match--final glass-strong">
+            <div class="bracket-match__row">
+              <span class="bracket-match__team">{{ nombreEquipo(finalMatch.homeTeam) }}</span>
+              <span class="bracket-match__score">{{ finalMatch.homeScore ?? '-' }}</span>
+            </div>
+            <div class="bracket-match__row">
+              <span class="bracket-match__team">{{ nombreEquipo(finalMatch.awayTeam) }}</span>
+              <span class="bracket-match__score">{{ finalMatch.awayScore ?? '-' }}</span>
+            </div>
+          </NuxtLink>
+        </div>
+
+        <div v-if="tercerLugarMatch" class="bracket-round bracket-round--bronze">
+          <span class="bracket-round__label">🥉 Tercer lugar</span>
+          <NuxtLink :to="`/matches/${tercerLugarMatch.id}`" class="bracket-match glass">
+            <div class="bracket-match__row">
+              <span class="bracket-match__team">{{ nombreEquipo(tercerLugarMatch.homeTeam) }}</span>
+              <span class="bracket-match__score">{{ tercerLugarMatch.homeScore ?? '-' }}</span>
+            </div>
+            <div class="bracket-match__row">
+              <span class="bracket-match__team">{{ nombreEquipo(tercerLugarMatch.awayTeam) }}</span>
+              <span class="bracket-match__score">{{ tercerLugarMatch.awayScore ?? '-' }}</span>
+            </div>
+          </NuxtLink>
+        </div>
+      </div>
+
+      <!-- Mitad derecha (espejo) -->
+      <div class="bracket-half bracket-half--derecha">
+        <div v-for="grupo in mitadDerecha" :key="`d-${grupo.ronda}`" class="bracket-round">
+          <span class="bracket-round__label">{{ grupo.ronda }}</span>
+          <div class="bracket-round__matches">
+            <NuxtLink
+              v-for="partido in grupo.partidos"
+              :key="partido.id"
+              :to="`/matches/${partido.id}`"
+              class="bracket-match glass"
+            >
+              <div class="bracket-match__row">
+                <span class="bracket-match__team">{{ nombreEquipo(partido.homeTeam) }}</span>
+                <span class="bracket-match__score">{{ partido.homeScore ?? '-' }}</span>
+              </div>
+              <div class="bracket-match__row">
+                <span class="bracket-match__team">{{ nombreEquipo(partido.awayTeam) }}</span>
+                <span class="bracket-match__score">{{ partido.awayScore ?? '-' }}</span>
+              </div>
+            </NuxtLink>
           </div>
-          <span class="badge" :class="`badge--${partido.status.replace(' ', '').toLowerCase()}`">
-            {{ partido.status }}
-          </span>
-        </NuxtLink>
+        </div>
       </div>
     </div>
   </div>
@@ -179,24 +266,35 @@ const nombreEquipo = (nombre: string) => (nombre === 'Por definir' ? 'Por defini
   animation: spin 0.8s linear infinite;
 }
 
-/* Board */
-.bracket-board {
+/* Cuadro completo: izquierda | centro | derecha */
+.bracket-tree {
   display: flex;
+  align-items: center;
+  justify-content: center;
   gap: var(--space-xl);
   overflow-x: auto;
-  padding-bottom: var(--space-md);
+  padding: var(--space-md) 0 var(--space-xl);
 }
 
-.bracket-column {
+.bracket-half {
   display: flex;
-  flex-direction: column;
-  gap: var(--space-md);
-  min-width: 220px;
+  align-items: center;
+  gap: var(--space-lg);
   flex: 0 0 auto;
 }
 
-.bracket-column__title {
-  font-size: 0.85rem;
+.bracket-round {
+  display: flex;
+  flex-direction: column;
+  align-items: stretch;
+  justify-content: space-around;
+  gap: var(--space-lg);
+  min-width: 190px;
+  flex: 0 0 auto;
+}
+
+.bracket-round__label {
+  font-size: 0.72rem;
   font-weight: 700;
   color: var(--text-gold);
   text-transform: uppercase;
@@ -204,34 +302,39 @@ const nombreEquipo = (nombre: string) => (nombre === 'Por definir' ? 'Por defini
   text-align: center;
 }
 
-.bracket-column__empty {
-  font-size: 0.78rem;
-  color: var(--text-muted);
-  text-align: center;
+.bracket-round__matches {
+  display: flex;
+  flex-direction: column;
+  justify-content: space-around;
+  gap: var(--space-lg);
+  flex: 1;
 }
 
 .bracket-match {
   display: flex;
   flex-direction: column;
-  align-items: center;
-  gap: var(--space-sm);
-  padding: var(--space-md);
+  gap: 6px;
+  padding: var(--space-sm) var(--space-md);
   border-radius: var(--radius-md);
   transition: transform var(--transition-base), box-shadow var(--transition-base);
 }
 
 .bracket-match:hover {
-  transform: translateY(-2px);
+  transform: translateY(-2px) scale(1.02);
   box-shadow: var(--shadow-md);
+}
+
+.bracket-match--final {
+  padding: var(--space-md) var(--space-lg);
+  border: 1px solid rgba(255, 214, 10, 0.3);
 }
 
 .bracket-match__row {
   display: flex;
   align-items: center;
   justify-content: space-between;
-  width: 100%;
   gap: var(--space-sm);
-  font-size: 0.85rem;
+  font-size: 0.8rem;
   font-weight: 600;
 }
 
@@ -246,29 +349,47 @@ const nombreEquipo = (nombre: string) => (nombre === 'Por definir' ? 'Por defini
   border-radius: var(--radius-sm);
   background: var(--bg-surface);
   color: var(--text-gold);
-  font-size: 0.8rem;
+  font-size: 0.78rem;
   font-weight: 800;
 }
 
-.badge {
-  padding: 2px 10px;
-  border-radius: 999px;
-  font-weight: 600;
-  font-size: 0.7rem;
+/* Centro: trofeo + final + tercer lugar */
+.bracket-center {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: var(--space-lg);
+  flex: 0 0 auto;
+  padding: 0 var(--space-md);
 }
 
-.badge--programado {
-  background: rgba(139, 149, 165, 0.15);
-  color: var(--text-secondary);
+.bracket-center__label {
+  font-size: 0.75rem;
+  font-weight: 700;
+  color: var(--text-muted);
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
 }
 
-.badge--envivo {
-  background: rgba(255, 107, 107, 0.15);
-  color: #ff6b6b;
+.bracket-trophy {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 4px;
 }
 
-.badge--finalizado {
-  background: rgba(0, 184, 148, 0.15);
-  color: var(--green-primary);
+.bracket-trophy__icon {
+  font-size: 2.4rem;
+  animation: float 3s ease-in-out infinite;
+}
+
+.bracket-trophy__team {
+  font-size: 1rem;
+  font-weight: 800;
+  color: var(--text-gold);
+}
+
+.bracket-round--bronze {
+  opacity: 0.85;
 }
 </style>

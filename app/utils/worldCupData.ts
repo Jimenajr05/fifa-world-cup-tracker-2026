@@ -56,45 +56,67 @@ export const CLUBES_REFERENCIA = [
   'Otro / Sin club',
 ] as const
 
+// Las 48 selecciones que clasificaron realmente al Mundial 2026 (12 grupos x 4),
+// organizado por confederación según el reparto oficial de cupos.
 export const SELECCIONES_REFERENCIA: SeleccionRef[] = [
+  // CONMEBOL (6)
   { name: 'Argentina', code: 'ar', confederation: 'CONMEBOL' },
   { name: 'Brasil', code: 'br', confederation: 'CONMEBOL' },
-  { name: 'Uruguay', code: 'uy', confederation: 'CONMEBOL' },
   { name: 'Colombia', code: 'co', confederation: 'CONMEBOL' },
   { name: 'Ecuador', code: 'ec', confederation: 'CONMEBOL' },
   { name: 'Paraguay', code: 'py', confederation: 'CONMEBOL' },
-  { name: 'España', code: 'es', confederation: 'UEFA' },
-  { name: 'Francia', code: 'fr', confederation: 'UEFA' },
+  { name: 'Uruguay', code: 'uy', confederation: 'CONMEBOL' },
+
+  // UEFA (16)
   { name: 'Alemania', code: 'de', confederation: 'UEFA' },
-  { name: 'Portugal', code: 'pt', confederation: 'UEFA' },
-  { name: 'Inglaterra', code: 'gb-eng', confederation: 'UEFA' },
-  { name: 'Países Bajos', code: 'nl', confederation: 'UEFA' },
-  { name: 'Italia', code: 'it', confederation: 'UEFA' },
+  { name: 'Austria', code: 'at', confederation: 'UEFA' },
   { name: 'Bélgica', code: 'be', confederation: 'UEFA' },
+  { name: 'Bosnia y Herzegovina', code: 'ba', confederation: 'UEFA' },
   { name: 'Croacia', code: 'hr', confederation: 'UEFA' },
+  { name: 'España', code: 'es', confederation: 'UEFA' },
+  { name: 'Escocia', code: 'gb-sct', confederation: 'UEFA' },
+  { name: 'Francia', code: 'fr', confederation: 'UEFA' },
+  { name: 'Inglaterra', code: 'gb-eng', confederation: 'UEFA' },
+  { name: 'Noruega', code: 'no', confederation: 'UEFA' },
+  { name: 'Países Bajos', code: 'nl', confederation: 'UEFA' },
+  { name: 'Portugal', code: 'pt', confederation: 'UEFA' },
+  { name: 'República Checa', code: 'cz', confederation: 'UEFA' },
+  { name: 'Suecia', code: 'se', confederation: 'UEFA' },
   { name: 'Suiza', code: 'ch', confederation: 'UEFA' },
-  { name: 'Dinamarca', code: 'dk', confederation: 'UEFA' },
-  { name: 'Polonia', code: 'pl', confederation: 'UEFA' },
-  { name: 'México', code: 'mx', confederation: 'CONCACAF' },
-  { name: 'Estados Unidos', code: 'us', confederation: 'CONCACAF' },
-  { name: 'Canadá', code: 'ca', confederation: 'CONCACAF' },
-  { name: 'Costa Rica', code: 'cr', confederation: 'CONCACAF' },
-  { name: 'Panamá', code: 'pa', confederation: 'CONCACAF' },
-  { name: 'Jamaica', code: 'jm', confederation: 'CONCACAF' },
-  { name: 'Marruecos', code: 'ma', confederation: 'CAF' },
-  { name: 'Senegal', code: 'sn', confederation: 'CAF' },
-  { name: 'Nigeria', code: 'ng', confederation: 'CAF' },
-  { name: 'Ghana', code: 'gh', confederation: 'CAF' },
-  { name: 'Camerún', code: 'cm', confederation: 'CAF' },
-  { name: 'Egipto', code: 'eg', confederation: 'CAF' },
-  { name: 'Túnez', code: 'tn', confederation: 'CAF' },
+  { name: 'Turquía', code: 'tr', confederation: 'UEFA' },
+
+  // CAF (10)
   { name: 'Argelia', code: 'dz', confederation: 'CAF' },
-  { name: 'Japón', code: 'jp', confederation: 'AFC' },
-  { name: 'Corea del Sur', code: 'kr', confederation: 'AFC' },
+  { name: 'Cabo Verde', code: 'cv', confederation: 'CAF' },
+  { name: 'Costa de Marfil', code: 'ci', confederation: 'CAF' },
+  { name: 'Egipto', code: 'eg', confederation: 'CAF' },
+  { name: 'Ghana', code: 'gh', confederation: 'CAF' },
+  { name: 'Marruecos', code: 'ma', confederation: 'CAF' },
+  { name: 'RD del Congo', code: 'cd', confederation: 'CAF' },
+  { name: 'Senegal', code: 'sn', confederation: 'CAF' },
+  { name: 'Sudáfrica', code: 'za', confederation: 'CAF' },
+  { name: 'Túnez', code: 'tn', confederation: 'CAF' },
+
+  // AFC (9)
   { name: 'Arabia Saudita', code: 'sa', confederation: 'AFC' },
-  { name: 'Irán', code: 'ir', confederation: 'AFC' },
   { name: 'Australia', code: 'au', confederation: 'AFC' },
   { name: 'Catar', code: 'qa', confederation: 'AFC' },
+  { name: 'Corea del Sur', code: 'kr', confederation: 'AFC' },
+  { name: 'Irak', code: 'iq', confederation: 'AFC' },
+  { name: 'Irán', code: 'ir', confederation: 'AFC' },
+  { name: 'Japón', code: 'jp', confederation: 'AFC' },
+  { name: 'Jordania', code: 'jo', confederation: 'AFC' },
+  { name: 'Uzbekistán', code: 'uz', confederation: 'AFC' },
+
+  // CONCACAF (6) — incluye los 3 países anfitriones
+  { name: 'Canadá', code: 'ca', confederation: 'CONCACAF' },
+  { name: 'Curazao', code: 'cw', confederation: 'CONCACAF' },
+  { name: 'Estados Unidos', code: 'us', confederation: 'CONCACAF' },
+  { name: 'Haití', code: 'ht', confederation: 'CONCACAF' },
+  { name: 'México', code: 'mx', confederation: 'CONCACAF' },
+  { name: 'Panamá', code: 'pa', confederation: 'CONCACAF' },
+
+  // OFC (1)
   { name: 'Nueva Zelanda', code: 'nz', confederation: 'OFC' },
 ]
 

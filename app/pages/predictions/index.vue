@@ -34,6 +34,15 @@ const partidosFiltrados = computed(() => {
 // Set de matchId ya pronosticados por el usuario, para pintar el badge "Ya predicho"
 const matchIdsPredichos = computed(() => new Set(predictions.value.map((p) => p.matchId)))
 
+// Mapa matchId -> predicción, para poder mostrar el marcador que ya guardó el usuario
+const prediccionPorMatchId = computed(() => {
+  const mapa = new Map<string, { homePrediction: number; awayPrediction: number }>()
+  for (const p of predictions.value) {
+    mapa.set(p.matchId, { homePrediction: p.homePrediction, awayPrediction: p.awayPrediction })
+  }
+  return mapa
+})
+
 const formatearFecha = (ts: { toDate: () => Date }) =>
   ts.toDate().toLocaleString('es', { day: '2-digit', month: 'short', year: 'numeric', hour: '2-digit', minute: '2-digit' })
 </script>
@@ -102,7 +111,10 @@ const formatearFecha = (ts: { toDate: () => Date }) =>
           <span v-if="matchIdsPredichos.has(match.id)" class="badge badge--predicho">Ya predicho</span>
           <div class="prediction-card__teams">
             <span class="prediction-card__team">{{ match.homeTeam }}</span>
-            <span class="prediction-card__vs">vs</span>
+            <span v-if="prediccionPorMatchId.has(match.id)" class="prediction-card__score">
+              {{ prediccionPorMatchId.get(match.id)?.homePrediction }} - {{ prediccionPorMatchId.get(match.id)?.awayPrediction }}
+            </span>
+            <span v-else class="prediction-card__vs">vs</span>
             <span class="prediction-card__team">{{ match.awayTeam }}</span>
           </div>
           <div class="prediction-card__meta">
@@ -248,6 +260,15 @@ const formatearFecha = (ts: { toDate: () => Date }) =>
   font-weight: 500;
 }
 
+.prediction-card__score {
+  padding: 2px 12px;
+  border-radius: var(--radius-sm);
+  background: var(--bg-surface);
+  color: var(--text-gold);
+  font-size: 0.85rem;
+  font-weight: 800;
+}
+
 .prediction-card__meta {
   display: flex;
   gap: var(--space-md);
@@ -263,6 +284,7 @@ const formatearFecha = (ts: { toDate: () => Date }) =>
   border-radius: 999px;
   font-weight: 600;
   font-size: 0.7rem;
+  white-space: nowrap;
   background: rgba(0, 184, 148, 0.15);
   color: var(--green-primary);
 }
