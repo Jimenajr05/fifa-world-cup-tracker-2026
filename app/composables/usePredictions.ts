@@ -10,7 +10,8 @@ import {
   where,
   increment,
 } from 'firebase/firestore'
-import type { Match } from './useMatches'
+import type { Match, NewMatch } from './useMatches'
+import { ValidationError, enteroEnRango } from '~/utils/validation'
 
 // Estructura de una predicción guardada en Firestore (colección "predictions")
 export interface Prediction {
@@ -79,14 +80,25 @@ export const usePredictions = () => {
   }
 
   // Crea o actualiza la predicción de un usuario para un partido (upsert).
-  // Solo debe llamarse mientras el partido siga en estado "Programado"
-  // (esa validación se hace en la página, donde se conoce el estado del partido).
   const guardarPrediccion = async (
     userId: string,
     matchId: string,
     homePrediction: number,
     awayPrediction: number,
   ) => {
+    enteroEnRango(Number(homePrediction), 'El marcador que predices para el local', 0, 20)
+    enteroEnRango(Number(awayPrediction), 'El marcador que predices para el visitante', 0, 20)
+
+    const matchSnap = await getDoc(doc($firestore, 'matches', matchId))
+    if (!matchSnap.exists()) throw new ValidationError('El partido no existe.')
+    const match = matchSnap.data() as NewMatch
+    if (match.status !== 'Programado') {
+      throw new ValidationError('Solo se puede predecir un partido que todavía no comenzó.')
+    }
+    if (match.kickoff.toDate().getTime() <= Date.now()) {
+      throw new ValidationError('Ya no puedes predecir este partido: la hora de inicio ya pasó.')
+    }
+
     const existente = await fetchPredictionByMatch(userId, matchId)
     if (existente) {
       await updateDoc(doc($firestore, 'predictions', existente.id), {
