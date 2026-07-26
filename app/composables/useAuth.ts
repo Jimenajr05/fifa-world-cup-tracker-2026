@@ -5,7 +5,8 @@ import {
   onAuthStateChanged,
   type User
 } from 'firebase/auth'
-import { doc, setDoc, getDoc, serverTimestamp, arrayUnion, arrayRemove } from 'firebase/firestore'
+import { doc, setDoc, getDoc, collection, getDocs, query, where, serverTimestamp, arrayUnion, arrayRemove } from 'firebase/firestore'
+import { requerido, longitud } from '~/utils/validation'
 
 // Estructura del perfil guardado en Firestore (colección "users")
 export interface PerfilUsuario {
@@ -84,6 +85,10 @@ export const useAuth = () => {
   // Permite editar nombre y/o selección favorita
   const actualizarPerfil = async (cambios: { nombre?: string; seleccionFavorita?: string }) => {
     if (!user.value) return
+    if (cambios.nombre !== undefined) {
+      requerido(cambios.nombre, 'El nombre')
+      longitud(cambios.nombre, 'El nombre', 2, 60)
+    }
     const userRef = doc($firestore, 'users', user.value.uid)
     await setDoc(userRef, cambios, { merge: true })
     // Refleja el cambio localmente sin necesidad de volver a leer Firestore
@@ -100,6 +105,11 @@ export const useAuth = () => {
     if (!user.value) return
     if (perfil.value?.campeonElegido) {
       errorCampeon.value = 'Ya elegiste tu campeón, no se puede cambiar.'
+      return
+    }
+    const existe = await getDocs(query(collection($firestore, 'teams'), where('name', '==', equipo)))
+    if (existe.empty) {
+      errorCampeon.value = 'Esa selección no existe.'
       return
     }
     const userRef = doc($firestore, 'users', user.value.uid)

@@ -1,5 +1,6 @@
 <script setup lang="ts">
 import { nombresSelecciones } from '~/utils/worldCupData'
+import { mensajeError } from '~/utils/validation'
 
 const { user, perfil, cargandoPerfil, actualizarPerfil, elegirCampeon, errorCampeon, cargarPerfil } = useAuth()
 
@@ -11,6 +12,7 @@ const nombreEditable = ref('')
 const seleccionEditable = ref<string | null>(null)
 const guardando = ref(false)
 const mensajeExito = ref(false)
+const errorPerfil = ref('')
 
 // Sincroniza el formulario cuando el perfil termina de cargar
 watch(perfil, (nuevoPerfil) => {
@@ -44,6 +46,7 @@ const confirmarCampeon = async () => {
 const guardarCambios = async () => {
   guardando.value = true
   mensajeExito.value = false
+  errorPerfil.value = ''
   try {
     await actualizarPerfil({
       nombre: nombreEditable.value,
@@ -53,6 +56,7 @@ const guardarCambios = async () => {
     setTimeout(() => { mensajeExito.value = false }, 3000)
   } catch (error) {
     console.error('Error al guardar perfil:', error)
+    errorPerfil.value = mensajeError(error, 'No se pudo guardar el perfil.')
   } finally {
     guardando.value = false
   }
@@ -155,6 +159,7 @@ const guardarCambios = async () => {
             </select>
           </div>
 
+          <p v-if="errorPerfil" class="form-error">{{ errorPerfil }}</p>
           <button type="submit" class="save-btn" :disabled="guardando">
             <span v-if="guardando" class="btn-spinner" />
             <svg v-else width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
@@ -428,6 +433,11 @@ select.field__input {
   background-repeat: no-repeat;
   background-position: right 14px center;
   padding-right: 40px;
+}
+
+.form-error {
+  color: #ff6b6b;
+  font-size: 0.85rem;
 }
 
 /* ── Save Button ───────────────────────────────────────────── */

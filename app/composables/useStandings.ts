@@ -8,6 +8,7 @@ export interface StandingRow {
   teamId: string
   teamName: string
   flag: string
+  fifaRanking: number
   played: number
   wins: number
   draws: number
@@ -49,6 +50,7 @@ export const useStandings = () => {
           teamId: team.id,
           teamName: team.name,
           flag: team.flag,
+          fifaRanking: team.fifaRanking,
           played: 0,
           wins: 0,
           draws: 0,
@@ -93,9 +95,49 @@ export const useStandings = () => {
         fila.goalDifference = fila.goalsFor - fila.goalsAgainst
       }
 
-      standings.value = Array.from(tabla.values()).sort(
-        (a, b) => b.points - a.points || b.goalDifference - a.goalDifference || b.goalsFor - a.goalsFor,
-      )
+      // Criterios de desempate oficiales FIFA (Mundial 2026), en orden:
+      // 1) puntos · 2) puntos entre los empatados (mini-tabla directa)
+      // 3) diferencia de gol entre los empatados · 4) goles a favor entre los empatados
+      // 5) diferencia de gol general · 6) goles a favor general · 7) ranking FIFA (fair play y sorteo no aplican: sin datos de tarjetas)
+      const miniTabla = (equipos: StandingRow[]) => {
+        const nombres = new Set(equipos.map((e) => e.teamName))
+        const stats = new Map(equipos.map((e) => [e.teamName, { puntos: 0, dg: 0, gf: 0 }]))
+        for (const m of matches) {
+          if (!nombres.has(m.homeTeam) || !nombres.has(m.awayTeam)) continue
+          if (m.homeScore === null || m.awayScore === null) continue
+          const local = stats.get(m.homeTeam)!
+          const visitante = stats.get(m.awayTeam)!
+          local.gf += m.homeScore
+          visitante.gf += m.awayScore
+          local.dg += m.homeScore - m.awayScore
+          visitante.dg += m.awayScore - m.homeScore
+          if (m.homeScore > m.awayScore) local.puntos += 3
+          else if (m.homeScore < m.awayScore) visitante.puntos += 3
+          else { local.puntos++; visitante.puntos++ }
+        }
+        return stats
+      }
+
+      const comparar = (a: StandingRow, b: StandingRow, empatados: StandingRow[]) => {
+        if (b.points !== a.points) return b.points - a.points
+        if (empatados.length > 1) {
+          const mini = miniTabla(empatados)
+          const statsA = mini.get(a.teamName)!
+          const statsB = mini.get(b.teamName)!
+          if (statsB.puntos !== statsA.puntos) return statsB.puntos - statsA.puntos
+          if (statsB.dg !== statsA.dg) return statsB.dg - statsA.dg
+          if (statsB.gf !== statsA.gf) return statsB.gf - statsA.gf
+        }
+        if (b.goalDifference !== a.goalDifference) return b.goalDifference - a.goalDifference
+        if (b.goalsFor !== a.goalsFor) return b.goalsFor - a.goalsFor
+        return a.fifaRanking - b.fifaRanking // ranking FIFA más bajo = mejor posicionado
+      }
+
+      const todos = Array.from(tabla.values())
+      standings.value = todos.sort((a, b) => {
+        const empatados = todos.filter((t) => t.points === a.points || t.points === b.points)
+        return comparar(a, b, empatados.filter((t) => t.points === a.points))
+      })
     } catch (err) {
       console.error('Error al calcular la tabla de posiciones:', err)
       error.value = 'No se pudo calcular la tabla de posiciones.'

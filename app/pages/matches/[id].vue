@@ -2,6 +2,7 @@
 import { Timestamp } from 'firebase/firestore'
 import type { Match, MatchScorer } from '~/composables/useMatches'
 import { FASES, GRUPOS, ESTADOS_PARTIDO, nombresEstadios, buscarEstadioPorNombre } from '~/utils/worldCupData'
+import { mensajeError } from '~/utils/validation'
 
 const route = useRoute()
 const router = useRouter()
@@ -188,20 +189,25 @@ const guardarCambios = async () => {
     await cargar()
   } catch (err) {
     console.error('Error al actualizar partido:', err)
+    errorEdicion.value = mensajeError(err, 'No se pudo actualizar el partido.')
   } finally {
     guardando.value = false
   }
 }
 
+const errorEliminar = ref('')
+
 const eliminar = async () => {
   if (!match.value) return
   const confirmado = await confirmar(`¿Eliminar el partido ${match.value.homeTeam} vs ${match.value.awayTeam}?`)
   if (!confirmado) return
+  errorEliminar.value = ''
   try {
     await deleteMatch(match.value.id)
     router.push('/matches')
   } catch (err) {
     console.error('Error al eliminar partido:', err)
+    errorEliminar.value = mensajeError(err, 'No se pudo eliminar el partido.')
   }
 }
 
@@ -267,6 +273,7 @@ const formatearFecha = (ts: Timestamp) =>
           <button class="btn-edit" @click="editando = true">Editar</button>
           <button class="btn-delete" @click="eliminar">Eliminar</button>
         </div>
+        <p v-if="errorEliminar" class="form-error">{{ errorEliminar }}</p>
       </template>
 
       <!-- Formulario de edición -->

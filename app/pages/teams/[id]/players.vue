@@ -1,7 +1,8 @@
 <script setup lang="ts">
 import type { Team } from '~/composables/useTeams'
 import type { NewPlayer, Player } from '~/composables/usePlayers'
-import { POSICIONES_JUGADOR, CLUBES_REFERENCIA } from '~/utils/worldCupData'
+import { POSICIONES_JUGADOR, CLUBES_REFERENCIA, NOMBRES_JUGADORES_POR_SELECCION, OTRO_NOMBRE_JUGADOR as OTRO_NOMBRE } from '~/utils/worldCupData'
+import { mensajeError } from '~/utils/validation'
 
 const route = useRoute()
 const id = route.params.id as string
@@ -28,6 +29,27 @@ const cargar = () => {
 
 onMounted(cargar)
 
+// Nombres REALES convocados 2026 de esta selección (si hay datos verificados);
+// si no hay datos para esta selección, solo queda "Otro" para escribirlo a mano
+const nombresDisponibles = computed(() => {
+  const reales = NOMBRES_JUGADORES_POR_SELECCION[team.value?.name ?? '']
+  return reales ? [...reales, OTRO_NOMBRE] : [OTRO_NOMBRE]
+})
+
+// Aviso no bloqueante: reglamento FIFA exige entre 23 y 26 convocados,
+// con mínimo 3 porteros en la plantilla final.
+const avisoPlantilla = computed(() => {
+  if (players.value.length === 0) return ''
+  const porteros = players.value.filter((p) => p.position === 'Portero').length
+  if (players.value.length < 23) {
+    return `La plantilla tiene ${players.value.length} jugador(es). FIFA exige un mínimo de 23 convocados.`
+  }
+  if (porteros < 3) {
+    return `La plantilla solo tiene ${porteros} portero(s). FIFA exige un mínimo de 3.`
+  }
+  return ''
+})
+
 // ── Búsqueda dentro de la plantilla ─────────────────────────
 const busqueda = ref('')
 const jugadoresFiltrados = computed(() => {
@@ -48,6 +70,14 @@ const nuevoJugador = reactive<Omit<NewPlayer, 'teamId'>>({
   number: 1,
   position: '',
   club: '',
+  titular: false,
+})
+
+// Combo box de nombre: si eligen "Otro", se habilita un input de texto libre
+const nombreSeleccionado = ref('')
+const escribirNombrePropio = computed(() => nombreSeleccionado.value === OTRO_NOMBRE)
+watch(nombreSeleccionado, (valor) => {
+  nuevoJugador.name = valor === OTRO_NOMBRE ? '' : valor
 })
 
 const resetFormularioJugador = () => {
@@ -55,6 +85,8 @@ const resetFormularioJugador = () => {
   nuevoJugador.number = 1
   nuevoJugador.position = ''
   nuevoJugador.club = ''
+  nuevoJugador.titular = false
+  nombreSeleccionado.value = ''
   errorFormularioJugador.value = ''
 }
 
@@ -72,7 +104,7 @@ const agregarJugador = async () => {
     await fetchPlayersByTeam(id)
   } catch (err) {
     console.error('Error al agregar jugador:', err)
-    errorFormularioJugador.value = 'No se pudo guardar el jugador.'
+    errorFormularioJugador.value = mensajeError(err, 'No se pudo guardar el jugador.')
   } finally {
     creandoJugador.value = false
   }
@@ -88,6 +120,13 @@ const formularioEdicionJugador = reactive<Omit<NewPlayer, 'teamId'>>({
   number: 1,
   position: POSICIONES_JUGADOR[0],
   club: '',
+  titular: false,
+})
+
+const nombreSeleccionadoEdicion = ref('')
+const escribirNombrePropioEdicion = computed(() => nombreSeleccionadoEdicion.value === OTRO_NOMBRE)
+watch(nombreSeleccionadoEdicion, (valor) => {
+  if (valor) formularioEdicionJugador.name = valor === OTRO_NOMBRE ? '' : valor
 })
 
 const iniciarEdicionJugador = (player: Player) => {
@@ -96,6 +135,8 @@ const iniciarEdicionJugador = (player: Player) => {
   formularioEdicionJugador.number = player.number
   formularioEdicionJugador.position = player.position
   formularioEdicionJugador.club = player.club
+  formularioEdicionJugador.titular = player.titular
+  nombreSeleccionadoEdicion.value = nombresDisponibles.value.includes(player.name) ? player.name : OTRO_NOMBRE
   errorEdicionJugador.value = ''
 }
 
@@ -121,20 +162,27 @@ const guardarEdicionJugador = async () => {
     await fetchPlayersByTeam(id)
   } catch (err) {
     console.error('Error al editar jugador:', err)
-    errorEdicionJugador.value = 'No se pudo guardar el jugador.'
+    errorEdicionJugador.value = mensajeError(err, 'No se pudo guardar el jugador.')
   } finally {
     guardandoEdicionJugador.value = false
   }
 }
 
-const eliminarJugador = async (playerId: string) => {
-  const confirmado = await confirmar('¿Eliminar este jugador de la plantilla?')
+const errorEliminarJugador = ref('')
+
+const eliminarJugador = async (player: Player) => {
+  const mensaje = player.titular
+    ? `${player.name} es titular. ¿Eliminarlo igual de la plantilla?`
+    : '¿Eliminar este jugador de la plantilla?'
+  const confirmado = await confirmar(mensaje)
   if (!confirmado) return
+  errorEliminarJugador.value = ''
   try {
-    await deletePlayer(playerId)
+    await deletePlayer(player.id)
     await fetchPlayersByTeam(id)
   } catch (err) {
     console.error('Error al eliminar jugador:', err)
+    errorEliminarJugador.value = mensajeError(err, 'No se pudo eliminar el jugador.')
   }
 }
 </script>
@@ -153,22 +201,43 @@ const eliminarJugador = async (playerId: string) => {
           <p class="players-subtitle">Jugadores convocados para el Mundial 2026</p>
         </div>
       </div>
-      <button v-if="user" class="btn-add-player" @click="mostrarFormularioJugador = !mostrarFormularioJugador">
-        {{ mostrarFormularioJugador ? 'Cancelar' : '+ Agregar jugador' }}
-      </button>
+      <div class="players-header__actions">
+        <NuxtLink :to="`/teams/${id}/lineup`" class="btn-lineup">⚽ Ver alineación</NuxtLink>
+        <button v-if="user" class="btn-add-player" @click="mostrarFormularioJugador = !mostrarFormularioJugador">
+          {{ mostrarFormularioJugador ? 'Cancelar' : '+ Agregar jugador' }}
+        </button>
+      </div>
     </header>
+
+    <p v-if="avisoPlantilla" class="form-hint">⚠ {{ avisoPlantilla }}</p>
 
     <!-- Formulario de alta -->
     <Transition name="fade">
       <form v-if="mostrarFormularioJugador" class="player-form glass animate-slide-up" @submit.prevent="agregarJugador">
+        <h2 class="player-form__title">Crear jugador</h2>
         <div class="player-form__grid">
           <div class="field">
+            <label class="field__label">Selección</label>
+            <input class="field__input field__input--static" type="text" :value="team?.name ?? '...'" disabled />
+          </div>
+          <div class="field">
             <label class="field__label">Nombre</label>
-            <input v-model="nuevoJugador.name" type="text" class="field__input" placeholder="Nombre del jugador" required />
+            <select v-model="nombreSeleccionado" class="field__input" required>
+              <option value="" disabled>Selecciona un nombre</option>
+              <option v-for="n in nombresDisponibles" :key="n" :value="n">{{ n }}</option>
+            </select>
+            <input
+              v-if="escribirNombrePropio"
+              v-model="nuevoJugador.name"
+              type="text"
+              class="field__input"
+              placeholder="Escribe el nombre del jugador"
+              required
+            />
           </div>
           <div class="field">
             <label class="field__label">Número</label>
-            <input v-model.number="nuevoJugador.number" type="number" min="1" max="99" class="field__input" />
+            <input v-model.number="nuevoJugador.number" type="number" min="1" max="26" class="field__input" />
           </div>
           <div class="field">
             <label class="field__label">Posición</label>
@@ -185,10 +254,17 @@ const eliminarJugador = async (playerId: string) => {
             </select>
           </div>
         </div>
+        <label class="field__checkbox">
+          <input v-model="nuevoJugador.titular" type="checkbox" />
+          <span>Titular</span>
+        </label>
         <p v-if="errorFormularioJugador" class="form-error">{{ errorFormularioJugador }}</p>
-        <button type="submit" class="btn-edit" :disabled="creandoJugador">
-          {{ creandoJugador ? 'Guardando...' : 'Guardar jugador' }}
-        </button>
+        <div class="player-form__actions">
+          <button type="button" class="btn-cancel" @click="mostrarFormularioJugador = false">Cancelar</button>
+          <button type="submit" class="btn-edit" :disabled="creandoJugador">
+            {{ creandoJugador ? 'Guardando...' : 'Crear jugador' }}
+          </button>
+        </div>
       </form>
     </Transition>
 
@@ -199,6 +275,7 @@ const eliminarJugador = async (playerId: string) => {
       class="field__input search-input animate-slide-up delay-1"
       placeholder="Buscar jugador por nombre o club..."
     />
+    <p v-if="errorEliminarJugador" class="form-error">{{ errorEliminarJugador }}</p>
 
     <!-- Estado: cargando -->
     <div v-if="cargandoJugadores" class="state-box">
@@ -229,8 +306,19 @@ const eliminarJugador = async (playerId: string) => {
           @submit.prevent="guardarEdicionJugador"
         >
           <div class="player-edit-form__grid">
-            <input v-model="formularioEdicionJugador.name" type="text" class="field__input" placeholder="Nombre" required />
-            <input v-model.number="formularioEdicionJugador.number" type="number" min="1" max="99" class="field__input" />
+            <select v-model="nombreSeleccionadoEdicion" class="field__input" required>
+              <option value="" disabled>Selecciona un nombre</option>
+              <option v-for="n in nombresDisponibles" :key="n" :value="n">{{ n }}</option>
+            </select>
+            <input
+              v-if="escribirNombrePropioEdicion"
+              v-model="formularioEdicionJugador.name"
+              type="text"
+              class="field__input"
+              placeholder="Escribe el nombre del jugador"
+              required
+            />
+            <input v-model.number="formularioEdicionJugador.number" type="number" min="1" max="26" class="field__input" />
             <select v-model="formularioEdicionJugador.position" class="field__input">
               <option v-for="p in POSICIONES_JUGADOR" :key="p" :value="p">{{ p }}</option>
             </select>
@@ -239,6 +327,10 @@ const eliminarJugador = async (playerId: string) => {
               <option v-for="club in CLUBES_REFERENCIA" :key="club" :value="club">{{ club }}</option>
             </select>
           </div>
+          <label class="field__checkbox">
+            <input v-model="formularioEdicionJugador.titular" type="checkbox" />
+            <span>Titular</span>
+          </label>
           <p v-if="errorEdicionJugador" class="form-error">{{ errorEdicionJugador }}</p>
           <div class="player-edit-form__actions">
             <button type="submit" class="btn-edit" :disabled="guardandoEdicionJugador">
@@ -253,11 +345,14 @@ const eliminarJugador = async (playerId: string) => {
           <span class="player-item__number">{{ player.number }}</span>
           <div class="player-item__info">
             <p class="player-item__name">{{ player.name }}</p>
-            <p class="player-item__meta">{{ player.position }} · {{ player.club || 'Sin club' }}</p>
+            <p class="player-item__meta">
+              {{ player.position }} · {{ player.club || 'Sin club' }}
+              <span v-if="player.titular" class="player-item__badge">Titular</span>
+            </p>
           </div>
           <div v-if="user" class="player-item__actions">
             <button class="player-item__edit" title="Editar" @click="iniciarEdicionJugador(player)">✎</button>
-            <button class="player-item__delete" title="Eliminar" @click="eliminarJugador(player.id)">✕</button>
+            <button class="player-item__delete" title="Eliminar" @click="eliminarJugador(player)">✕</button>
           </div>
         </template>
       </li>
@@ -306,6 +401,12 @@ const eliminarJugador = async (playerId: string) => {
   object-fit: cover;
 }
 
+.players-header__actions {
+  display: flex;
+  align-items: center;
+  gap: var(--space-sm);
+}
+
 .players-title {
   font-size: clamp(1.3rem, 3vw, 1.7rem);
   font-weight: 800;
@@ -327,6 +428,22 @@ const eliminarJugador = async (playerId: string) => {
   font-size: 0.85rem;
 }
 
+.btn-lineup {
+  padding: 10px 18px;
+  border-radius: var(--radius-md);
+  background: var(--bg-surface);
+  border: 1px solid var(--border-glass);
+  color: var(--text-gold);
+  font-weight: 700;
+  font-size: 0.85rem;
+  transition: all var(--transition-fast);
+}
+
+.btn-lineup:hover {
+  border-color: var(--gold-start);
+  transform: translateY(-1px);
+}
+
 .player-form {
   padding: var(--space-xl);
   border-radius: var(--radius-lg);
@@ -335,10 +452,22 @@ const eliminarJugador = async (playerId: string) => {
   gap: var(--space-md);
 }
 
+.player-form__title {
+  font-size: 1.1rem;
+  font-weight: 800;
+  letter-spacing: -0.01em;
+}
+
 .player-form__grid {
   display: grid;
   grid-template-columns: repeat(auto-fit, minmax(160px, 1fr));
   gap: var(--space-md);
+}
+
+.player-form__actions {
+  display: flex;
+  justify-content: flex-end;
+  gap: var(--space-sm);
 }
 
 .field {
@@ -372,6 +501,33 @@ const eliminarJugador = async (playerId: string) => {
   box-shadow: 0 0 0 3px rgba(255, 214, 10, 0.1);
 }
 
+.field__input--static {
+  opacity: 0.7;
+  cursor: not-allowed;
+}
+
+.field__checkbox {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  width: fit-content;
+  padding: 10px 16px;
+  border-radius: var(--radius-md);
+  background: var(--bg-surface);
+  border: 1px solid var(--border-glass);
+  font-size: 0.88rem;
+  font-weight: 600;
+  color: var(--text-primary);
+  cursor: pointer;
+}
+
+.field__checkbox input {
+  width: 18px;
+  height: 18px;
+  accent-color: var(--gold-start);
+  cursor: pointer;
+}
+
 select.field__input {
   appearance: none;
   -webkit-appearance: none;
@@ -389,6 +545,16 @@ select.field__input {
 .form-error {
   color: #ff6b6b;
   font-size: 0.85rem;
+}
+
+.form-hint {
+  padding: 10px 16px;
+  border-radius: var(--radius-md);
+  background: rgba(255, 214, 10, 0.08);
+  border: 1px solid rgba(255, 214, 10, 0.25);
+  color: var(--text-gold);
+  font-size: 0.82rem;
+  width: fit-content;
 }
 
 .state-box {
@@ -490,6 +656,20 @@ select.field__input {
 .player-item__meta {
   font-size: 0.78rem;
   color: var(--text-muted);
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.player-item__badge {
+  padding: 2px 8px;
+  border-radius: 999px;
+  background: rgba(255, 214, 10, 0.12);
+  color: var(--text-gold);
+  font-size: 0.68rem;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
 }
 
 .player-item__actions {

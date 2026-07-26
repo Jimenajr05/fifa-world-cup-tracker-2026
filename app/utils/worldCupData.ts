@@ -56,8 +56,89 @@ export const CLUBES_REFERENCIA = [
   'Otro / Sin club',
 ] as const
 
-// Las 48 selecciones que clasificaron realmente al Mundial 2026 (12 grupos x 4),
-// organizado por confederación según el reparto oficial de cupos.
+export const OTRO_ENTRENADOR = 'Otro / Escribir nombre'
+export const OTRO_NOMBRE_JUGADOR = 'Otro / Escribir nombre'
+
+// Entrenadores REALES de cada selección clasificada al Mundial 2026, según
+// medios especializados (mayo 2026). Las selecciones que NO clasificaron a
+// esta edición (Italia, Dinamarca, Polonia, Camerún, Costa Rica, Nigeria,
+// Jamaica) no tienen entrada aquí a propósito: no corresponde sugerir un
+// entrenador de un Mundial en el que ese equipo no participa; en el combo
+// caen directo a "Otro / Escribir nombre".
+export const ENTRENADORES_POR_SELECCION: Record<string, string> = {
+  Argentina: 'Lionel Scaloni',
+  Brasil: 'Carlo Ancelotti',
+  Uruguay: 'Marcelo Bielsa',
+  Colombia: 'Néstor Lorenzo',
+  Ecuador: 'Sebastián Beccacece',
+  Paraguay: 'Gustavo Alfaro',
+  España: 'Luis de la Fuente',
+  Francia: 'Didier Deschamps',
+  Alemania: 'Julian Nagelsmann',
+  Portugal: 'Roberto Martínez',
+  Inglaterra: 'Thomas Tuchel',
+  'Países Bajos': 'Ronald Koeman',
+  Bélgica: 'Rudi Garcia',
+  Croacia: 'Zlatko Dalić',
+  Suiza: 'Murat Yakin',
+  México: 'Javier Aguirre',
+  'Estados Unidos': 'Mauricio Pochettino',
+  Canadá: 'Jesse Marsch',
+  Panamá: 'Thomas Christiansen',
+  Marruecos: 'Walid Regragui',
+  Senegal: 'Pape Thiaw',
+  Ghana: 'Carlos Queiroz',
+  Egipto: 'Hossam Hassan',
+  Túnez: 'Sami Trabelsi',
+  Argelia: 'Vladimir Petković',
+  Japón: 'Hajime Moriyasu',
+  'Corea del Sur': 'Hong Myung-bo',
+  'Arabia Saudita': 'Hervé Renard',
+  Irán: 'Amir Ghalenoei',
+  Australia: 'Tony Popovic',
+  Catar: 'Luis García',
+  'Nueva Zelanda': 'Darren Bazeley',
+}
+
+// Lista plana (fallback mientras no se conoce la selección elegida)
+export const ENTRENADORES_REFERENCIA = [
+  ...new Set(Object.values(ENTRENADORES_POR_SELECCION)),
+] as const
+
+// Jugadores REALES confirmados en la convocatoria 2026 de cada selección
+// (fuente: cobertura de prensa de la convocatoria final, mayo-junio 2026).
+// Solo se completan las selecciones con datos verificados; el resto del
+// listado se deja vacío a propósito -> el combo cae directo a
+// "Otro / Escribir nombre" en vez de inventar un jugador que no existe.
+export const NOMBRES_JUGADORES_POR_SELECCION: Record<string, readonly string[]> = {
+  Argentina: ['Lionel Messi', 'Julián Álvarez', 'Lautaro Martínez', 'Enzo Fernández', 'Rodrigo De Paul', 'Emiliano Martínez'],
+  Brasil: ['Vinícius Júnior', 'Neymar', 'Matheus Cunha', 'Raphinha', 'Gabriel Martinelli', 'Endrick'],
+  Uruguay: ['Federico Valverde', 'Rodrigo Bentancur', 'José María Giménez', 'Fernando Muslera', 'Manuel Ugarte'],
+  Colombia: ['James Rodríguez'],
+  Ecuador: ['Moisés Caicedo'],
+  Paraguay: ['Miguel Almirón', 'Antonio Sanabria'],
+  Francia: ['Kylian Mbappé'],
+  Portugal: ['Cristiano Ronaldo'],
+  Inglaterra: ['Jude Bellingham', 'Harry Kane'],
+  Croacia: ['Luka Modrić'],
+  'Países Bajos': ['Memphis Depay', 'Cody Gakpo', 'Donyell Malen', 'Virgil van Dijk', 'Frenkie de Jong'],
+  México: ['Guillermo Ochoa', 'Edson Álvarez', 'Raúl Jiménez', 'Santiago Giménez'],
+  'Estados Unidos': ['Christian Pulisic'],
+  Canadá: ['Stephen Eustáquio', 'Alistair Johnston'],
+  Panamá: ['Aníbal Godoy', 'José Fajardo', 'Cecilio Waterman'],
+  Marruecos: ['Yassine Bounou', 'Nayef Aguerd', 'Sofyan Amrabat', 'Achraf Hakimi'],
+  Senegal: ['Sadio Mané'],
+  Egipto: ['Mohamed Salah'],
+  Japón: ['Wataru Endo', 'Kaoru Mitoma', 'Daichi Kamada', 'Ao Tanaka', 'Daizen Maeda'],
+  'Corea del Sur': ['Son Heung-min', 'Lee Jae-sung', 'Hwang Hee-chan', 'Kim Min-jae'],
+  Australia: ['Mathew Leckie', 'Nestory Irankunda'],
+}
+
+// Lista plana (fallback general, solo jugadores verificados de cualquier selección)
+export const NOMBRES_JUGADORES_REFERENCIA = [
+  ...new Set(Object.values(NOMBRES_JUGADORES_POR_SELECCION).flat()),
+] as const
+
 export const SELECCIONES_REFERENCIA: SeleccionRef[] = [
   // CONMEBOL (6)
   { name: 'Argentina', code: 'ar', confederation: 'CONMEBOL' },
