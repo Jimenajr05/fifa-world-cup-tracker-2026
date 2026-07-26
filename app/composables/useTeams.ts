@@ -25,7 +25,7 @@ export interface Team {
 export type NewTeam = Omit<Team, 'id'>
 
 export const useTeams = () => {
-  const { $firestore } = useNuxtApp()
+  const { db: $firestore } = useFirestore()
   const teams = useState<Team[]>('teams', () => [])
   const loading = useState<boolean>('teamsLoading', () => false)
   const error = useState<string | null>('teamsError', () => null)

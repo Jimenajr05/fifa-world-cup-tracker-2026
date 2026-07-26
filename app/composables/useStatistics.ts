@@ -27,7 +27,7 @@ export interface EstadisticasGenerales {
 }
 
 export const useStatistics = () => {
-  const { $firestore } = useNuxtApp()
+  const { db: $firestore } = useFirestore()
 
   const estadisticas = useState<EstadisticasGenerales | null>('estadisticas', () => null)
   const loading = useState<boolean>('estadisticasLoading', () => false)

@@ -2,8 +2,9 @@
 import type { Match } from '~/composables/useMatches'
 
 const { user, perfil } = useAuth()
-const { predictions, loading, error, fetchPredictionsByUser } = usePredictions()
+const { predictions, loading, error, fetchPredictionsByUser, eliminarPrediccion } = usePredictions()
 const { fetchMatchById } = useMatches()
+const { confirmar } = useConfirm()
 
 // Guardamos los partidos asociados a cada predicción, indexados por matchId,
 // para mostrar equipos y resultado sin tener que repetir la consulta.
@@ -39,6 +40,20 @@ const prediccionesOrdenadas = computed(() =>
 
 const formatearFecha = (ts: { toDate: () => Date }) =>
   ts.toDate().toLocaleString('es', { day: '2-digit', month: 'short', year: 'numeric' })
+
+// Solo se puede borrar una predicción mientras el partido siga programado
+const puedeEliminar = (matchId: string) => partidosPorId.value[matchId]?.status === 'Programado'
+
+const eliminar = async (predictionId: string) => {
+  const confirmado = await confirmar('¿Eliminar esta predicción?')
+  if (!confirmado) return
+  try {
+    await eliminarPrediccion(predictionId)
+    await cargar()
+  } catch (err) {
+    console.error('Error al eliminar predicción:', err)
+  }
+}
 </script>
 
 <template>
@@ -92,16 +107,26 @@ const formatearFecha = (ts: { toDate: () => Date }) =>
             <span>{{ formatearFecha(partidosPorId[pred.matchId]!.kickoff) }}</span>
           </div>
         </template>
-        <span
-          class="points-pill"
-          :class="{
-            'points-pill--pending': pred.pointsEarned === null,
-            'points-pill--zero': pred.pointsEarned === 0,
-            'points-pill--won': (pred.pointsEarned ?? 0) > 0,
-          }"
-        >
-          {{ pred.pointsEarned === null ? 'Pendiente' : `+${pred.pointsEarned} pts` }}
-        </span>
+        <div class="prediction-row__end">
+          <span
+            class="points-pill"
+            :class="{
+              'points-pill--pending': pred.pointsEarned === null,
+              'points-pill--zero': pred.pointsEarned === 0,
+              'points-pill--won': (pred.pointsEarned ?? 0) > 0,
+            }"
+          >
+            {{ pred.pointsEarned === null ? 'Pendiente' : `+${pred.pointsEarned} pts` }}
+          </span>
+          <button
+            v-if="puedeEliminar(pred.matchId)"
+            class="prediction-row__delete"
+            title="Eliminar predicción"
+            @click="eliminar(pred.id)"
+          >
+            ✕
+          </button>
+        </div>
       </div>
     </div>
   </div>
@@ -241,5 +266,29 @@ const formatearFecha = (ts: { toDate: () => Date }) =>
 .points-pill--won {
   background: rgba(0, 184, 148, 0.15);
   color: var(--green-primary);
+}
+
+.prediction-row__end {
+  display: flex;
+  align-items: center;
+  gap: var(--space-sm);
+}
+
+.prediction-row__delete {
+  width: 26px;
+  height: 26px;
+  border-radius: 50%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: var(--text-muted);
+  background: var(--bg-glass);
+  font-size: 0.75rem;
+  transition: all var(--transition-fast);
+}
+
+.prediction-row__delete:hover {
+  color: #ff6b6b;
+  background: rgba(255, 107, 107, 0.1);
 }
 </style>

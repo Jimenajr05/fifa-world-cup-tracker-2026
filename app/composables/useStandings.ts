@@ -19,7 +19,7 @@ export interface StandingRow {
 }
 
 export const useStandings = () => {
-  const { $firestore } = useNuxtApp()
+  const { db: $firestore } = useFirestore()
   const standings = useState<StandingRow[]>('standings', () => [])
   const loading = useState<boolean>('standingsLoading', () => false)
   const error = useState<string | null>('standingsError', () => null)

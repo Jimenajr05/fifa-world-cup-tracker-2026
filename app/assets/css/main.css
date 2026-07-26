@@ -92,7 +92,7 @@ body {
   overflow-x: hidden;
 }
 
-/* Animated gradient background */
+/* Fondo con tonos de la app (navy/verde/dorado) */
 body::before {
   content: '';
   position: fixed;
@@ -101,6 +101,27 @@ body::before {
     radial-gradient(ellipse 80% 50% at 20% 20%, rgba(11, 37, 69, 0.6) 0%, transparent 60%),
     radial-gradient(ellipse 60% 40% at 80% 80%, rgba(0, 184, 148, 0.08) 0%, transparent 50%),
     radial-gradient(ellipse 50% 50% at 50% 0%, rgba(255, 214, 10, 0.04) 0%, transparent 50%);
+  pointer-events: none;
+  z-index: 0;
+}
+
+/* Cancha de fútbol de fondo: franjas de césped, círculo central y línea de
+   medio campo, muy sutiles para no competir con el contenido. */
+body::after {
+  content: '';
+  position: fixed;
+  inset: 0;
+  background:
+    radial-gradient(circle 110px at 50% 42%, transparent 97%, rgba(255, 255, 255, 0.05) 98%, transparent 99%),
+    radial-gradient(circle 5px at 50% 42%, rgba(255, 255, 255, 0.06) 100%, transparent 100%),
+    linear-gradient(to bottom, transparent calc(42% - 1px), rgba(255, 255, 255, 0.05) calc(42% - 1px) 42%, transparent calc(42% + 1px)),
+    repeating-linear-gradient(
+      135deg,
+      rgba(0, 184, 148, 0.035) 0px,
+      rgba(0, 184, 148, 0.035) 60px,
+      rgba(0, 184, 148, 0.015) 60px,
+      rgba(0, 184, 148, 0.015) 120px
+    );
   pointer-events: none;
   z-index: 0;
 }

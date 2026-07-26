@@ -24,7 +24,8 @@ export interface PerfilUsuario {
 }
 
 export const useAuth = () => {
-  const { $firebaseAuth, $firestore } = useNuxtApp()
+  const { $firebaseAuth } = useNuxtApp()
+  const { db: $firestore } = useFirestore()
   const user = useState<User | null>('user', () => null)
   const perfil = useState<PerfilUsuario | null>('perfil', () => null)
   const cargandoPerfil = useState<boolean>('cargandoPerfil', () => false)
@@ -162,5 +163,6 @@ export const useAuth = () => {
     errorCampeon,
     alternarEquipoFavorito,
     alternarPartidoFavorito,
+    cargarPerfil,
   }
 }
