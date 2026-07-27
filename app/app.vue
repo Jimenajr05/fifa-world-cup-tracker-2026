@@ -3,7 +3,6 @@ const { user, logout } = useAuth()
 
 const mobileMenuOpen = ref(false)
 const scrolled = ref(false)
-const errorFotoNavbar = ref(false)
 
 if (import.meta.client) {
   window.addEventListener('scroll', () => {
@@ -40,21 +39,29 @@ if (import.meta.client) {
           <NuxtLink to="/groups" class="navbar__link">
             Grupos
           </NuxtLink>
+          <NuxtLink to="/bracket" class="navbar__link">
+            Llaves
+          </NuxtLink>
+          <NuxtLink to="/predictions" class="navbar__link">
+            Predicciones
+          </NuxtLink>
+          <NuxtLink to="/stats" class="navbar__link">
+            Estadísticas
+          </NuxtLink>
           <NuxtLink to="/profile" class="navbar__link">
             Mi perfil
           </NuxtLink>
+
         </nav>
 
         <!-- User area -->
         <div v-if="user" class="navbar__user">
           <div class="navbar__avatar-wrap">
             <img
-              v-if="user.photoURL && !errorFotoNavbar"
+              v-if="user.photoURL"
               :src="user.photoURL"
               :alt="user.displayName ?? 'Avatar'"
               class="navbar__avatar"
-              referrerpolicy="no-referrer"
-              @error="errorFotoNavbar = true"
             />
             <span v-else class="navbar__avatar navbar__avatar--fallback">
               {{ (user.displayName ?? user.email ?? '?').charAt(0).toUpperCase() }}
@@ -96,6 +103,15 @@ if (import.meta.client) {
           </NuxtLink>
           <NuxtLink to="/groups" class="navbar__mobile-link" @click="mobileMenuOpen = false">
             Grupos
+          </NuxtLink>
+          <NuxtLink to="/bracket" class="navbar__mobile-link" @click="mobileMenuOpen = false">
+            Llaves
+          </NuxtLink>
+          <NuxtLink to="/predictions" class="navbar__mobile-link" @click="mobileMenuOpen = false">
+            Predicciones
+          </NuxtLink>
+          <NuxtLink to="/stats" class="navbar__mobile-link" @click="mobileMenuOpen = false">
+            Estadísticas
           </NuxtLink>
           <NuxtLink to="/profile" class="navbar__mobile-link" @click="mobileMenuOpen = false">
             Mi perfil
