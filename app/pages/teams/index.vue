@@ -1,6 +1,6 @@
 <script setup lang="ts">
 import type { NewTeam } from '~/composables/useTeams'
-import { CONFEDERACIONES, GRUPOS, nombresSelecciones, buscarSeleccionPorNombre, urlBanderaPorCodigo, ENTRENADORES_POR_SELECCION, OTRO_ENTRENADOR } from '~/utils/worldCupData'
+import { CONFEDERACIONES, GRUPOS, GRUPO_POR_SELECCION, FIFA_RANKING_POR_SELECCION, SELECCIONES_REFERENCIA, nombresSelecciones, buscarSeleccionPorNombre, urlBanderaPorCodigo, ENTRENADORES_POR_SELECCION, OTRO_ENTRENADOR } from '~/utils/worldCupData'
 import { mensajeError } from '~/utils/validation'
 
 const { teams, loading, error, fetchTeams, createTeam, deleteTeam } = useTeams()
@@ -65,12 +65,38 @@ const equiposFiltrados = computed(() => {
   })
 })
 
-// Al elegir el nombre en el combo box, autocompleta bandera y confederación
+// Paginación del listado de selecciones
+const EQUIPOS_POR_PAGINA = 12
+const paginaActual = ref(1)
+
+watch([busqueda, grupoFiltro, confederacionFiltro], () => {
+  paginaActual.value = 1
+})
+
+const totalPaginas = computed(() =>
+  Math.max(1, Math.ceil(equiposFiltrados.value.length / EQUIPOS_POR_PAGINA)),
+)
+
+watch(totalPaginas, (total) => {
+  if (paginaActual.value > total) paginaActual.value = total
+})
+
+const equiposPaginados = computed(() => {
+  const inicio = (paginaActual.value - 1) * EQUIPOS_POR_PAGINA
+  return equiposFiltrados.value.slice(inicio, inicio + EQUIPOS_POR_PAGINA)
+})
+
+// Al elegir el nombre en el combo box, autocompleta bandera, confederación
+// y el grupo oficial del sorteo del Mundial 2026 (el usuario puede cambiarlo)
 watch(() => nuevoEquipo.name, (nombre) => {
   const seleccion = buscarSeleccionPorNombre(nombre)
   if (seleccion) {
     nuevoEquipo.flag = urlBanderaPorCodigo(seleccion.code)
     nuevoEquipo.confederation = seleccion.confederation
+  }
+  const grupoOficial = GRUPO_POR_SELECCION[nombre]
+  if (grupoOficial) {
+    nuevoEquipo.group = grupoOficial
   }
 })
 
@@ -118,6 +144,52 @@ const subirBanderaPersonalizada = async (evento: Event) => {
   }
 }
 
+// Carga masiva: crea de un solo click las 48 selecciones oficiales del
+// Mundial 2026 (grupo, bandera, confederación, entrenador y ranking FIFA
+// autocompletados). Omite las que ya existen por nombre.
+const cargandoLote = ref(false)
+const resultadoLote = ref('')
+
+const cargarSeleccionesOficiales = async () => {
+  cargandoLote.value = true
+  resultadoLote.value = ''
+  let creadas = 0
+  let omitidas = 0
+  let fallidas = 0
+  try {
+    for (const seleccion of SELECCIONES_REFERENCIA) {
+      const yaExiste = teams.value.some((t) => t.name === seleccion.name)
+      if (yaExiste) {
+        omitidas++
+        continue
+      }
+      const grupo = GRUPO_POR_SELECCION[seleccion.name]
+      if (!grupo) {
+        omitidas++
+        continue
+      }
+      try {
+        await createTeam({
+          name: seleccion.name,
+          group: grupo,
+          flag: urlBanderaPorCodigo(seleccion.code),
+          coach: ENTRENADORES_POR_SELECCION[seleccion.name] ?? '',
+          confederation: seleccion.confederation,
+          fifaRanking: FIFA_RANKING_POR_SELECCION[seleccion.name] ?? 100,
+        })
+        creadas++
+      } catch (err) {
+        console.error(`No se pudo crear ${seleccion.name}:`, err)
+        fallidas++
+      }
+    }
+    await cargar()
+    resultadoLote.value = `Listo: ${creadas} creadas, ${omitidas} ya existían${fallidas ? `, ${fallidas} fallaron` : ''}.`
+  } finally {
+    cargandoLote.value = false
+  }
+}
+
 const errorEliminar = ref('')
 
 const eliminarEquipo = async (id: string) => {
@@ -143,10 +215,16 @@ const eliminarEquipo = async (id: string) => {
         </h1>
         <p class="teams-subtitle">Explora los equipos del Mundial 2026</p>
       </div>
-      <button v-if="user" class="btn-add" @click="mostrarFormulario = !mostrarFormulario">
-        {{ mostrarFormulario ? 'Cancelar' : '+ Agregar selección' }}
-      </button>
+      <div v-if="user" class="teams-header__actions">
+        <button class="btn-refetch" :disabled="cargandoLote" @click="cargarSeleccionesOficiales">
+          {{ cargandoLote ? 'Cargando...' : '⚡ Cargar las 48 selecciones oficiales' }}
+        </button>
+        <button class="btn-add" @click="mostrarFormulario = !mostrarFormulario">
+          {{ mostrarFormulario ? 'Cancelar' : '+ Agregar selección' }}
+        </button>
+      </div>
     </header>
+    <p v-if="resultadoLote" class="state-text">{{ resultadoLote }}</p>
 
     <!-- Formulario de creación -->
     <Transition name="fade">
@@ -229,6 +307,10 @@ const eliminarEquipo = async (id: string) => {
       </button>
     </div>
 
+    <p v-if="!loading && !error" class="results-count">
+      {{ equiposFiltrados.length }} selección{{ equiposFiltrados.length === 1 ? '' : 'es' }} en total
+    </p>
+
     <!-- Estado: cargando -->
     <div v-if="loading" class="state-box">
       <div class="spinner" />
@@ -249,26 +331,30 @@ const eliminarEquipo = async (id: string) => {
     <p v-if="errorEliminar" class="form-error">{{ errorEliminar }}</p>
 
     <!-- Listado -->
-    <div v-else class="teams-grid">
-      <div
-        v-for="team in equiposFiltrados"
-        :key="team.id"
-        class="team-card glass animate-slide-up"
-      >
-        <NuxtLink :to="`/teams/${team.id}`" class="team-card__link">
-          <img v-if="team.flag" :src="team.flag" :alt="team.name" class="team-card__flag" />
-          <span v-else class="team-card__flag team-card__flag--fallback">🏳️</span>
-          <div class="team-card__info">
-            <h3 class="team-card__name">{{ team.name }}</h3>
-            <p class="team-card__meta">Grupo {{ team.group }} · #{{ team.fifaRanking }} FIFA</p>
-            <p class="team-card__coach">{{ team.coach }}</p>
-          </div>
-        </NuxtLink>
-        <button v-if="user" class="team-card__delete" @click="eliminarEquipo(team.id)" title="Eliminar">
-          ✕
-        </button>
+    <template v-else>
+      <div class="teams-grid">
+        <div
+          v-for="team in equiposPaginados"
+          :key="team.id"
+          class="team-card glass animate-slide-up"
+        >
+          <NuxtLink :to="`/teams/${team.id}`" class="team-card__link">
+            <img v-if="team.flag" :src="team.flag" :alt="team.name" class="team-card__flag" />
+            <span v-else class="team-card__flag team-card__flag--fallback">🏳️</span>
+            <div class="team-card__info">
+              <h3 class="team-card__name">{{ team.name }}</h3>
+              <p class="team-card__meta">Grupo {{ team.group }} · #{{ team.fifaRanking }} FIFA</p>
+              <p class="team-card__coach">{{ team.coach }}</p>
+            </div>
+          </NuxtLink>
+          <button v-if="user" class="team-card__delete" @click="eliminarEquipo(team.id)" title="Eliminar">
+            ✕
+          </button>
+        </div>
       </div>
-    </div>
+
+      <Pagination v-model:pagina-actual="paginaActual" :total-paginas="totalPaginas" />
+    </template>
   </div>
 </template>
 
@@ -297,6 +383,13 @@ const eliminarEquipo = async (id: string) => {
   color: var(--text-secondary);
   font-size: 0.92rem;
   margin-top: 4px;
+}
+
+.teams-header__actions {
+  display: flex;
+  align-items: center;
+  gap: var(--space-md);
+  flex-wrap: wrap;
 }
 
 .btn-add {
@@ -415,6 +508,11 @@ select.field__input {
   display: flex;
   gap: var(--space-md);
   flex-wrap: wrap;
+}
+
+.results-count {
+  color: var(--text-muted);
+  font-size: 0.85rem;
 }
 
 .filters__search {
