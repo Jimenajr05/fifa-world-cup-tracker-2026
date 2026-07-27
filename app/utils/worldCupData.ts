@@ -19,6 +19,72 @@ export const CONFEDERACIONES = [
 // Grupos del formato de 48 selecciones (Mundial 2026): A a L
 export const GRUPOS = ['A', 'B', 'C', 'D', 'E', 'F', 'G', 'H', 'I', 'J', 'K', 'L'] as const
 
+// Grupo oficial de cada selección según el sorteo real del Mundial 2026
+// (5 de diciembre de 2025, Kennedy Center, Washington D.C.), ya con los
+// clasificados de repechaje (marzo 2026) incorporados.
+export const GRUPO_POR_SELECCION: Record<string, (typeof GRUPOS)[number]> = {
+  // Grupo A
+  México: 'A',
+  'Corea del Sur': 'A',
+  Sudáfrica: 'A',
+  'República Checa': 'A',
+  // Grupo B
+  Canadá: 'B',
+  Suiza: 'B',
+  Catar: 'B',
+  'Bosnia y Herzegovina': 'B',
+  // Grupo C
+  Brasil: 'C',
+  Marruecos: 'C',
+  Escocia: 'C',
+  Haití: 'C',
+  // Grupo D
+  'Estados Unidos': 'D',
+  Australia: 'D',
+  Paraguay: 'D',
+  Turquía: 'D',
+  // Grupo E
+  Alemania: 'E',
+  Ecuador: 'E',
+  'Costa de Marfil': 'E',
+  Curazao: 'E',
+  // Grupo F
+  'Países Bajos': 'F',
+  Japón: 'F',
+  Túnez: 'F',
+  Suecia: 'F',
+  // Grupo G
+  Bélgica: 'G',
+  Irán: 'G',
+  Egipto: 'G',
+  'Nueva Zelanda': 'G',
+  // Grupo H
+  España: 'H',
+  Uruguay: 'H',
+  'Arabia Saudita': 'H',
+  'Cabo Verde': 'H',
+  // Grupo I
+  Francia: 'I',
+  Senegal: 'I',
+  Noruega: 'I',
+  Irak: 'I',
+  // Grupo J
+  Argentina: 'J',
+  Austria: 'J',
+  Argelia: 'J',
+  Jordania: 'J',
+  // Grupo K
+  Portugal: 'K',
+  Colombia: 'K',
+  Uzbekistán: 'K',
+  'RD del Congo': 'K',
+  // Grupo L
+  Inglaterra: 'L',
+  Croacia: 'L',
+  Panamá: 'L',
+  Ghana: 'L',
+}
+
 export const POSICIONES_JUGADOR = ['Portero', 'Defensa', 'Mediocampista', 'Delantero'] as const
 
 // Clubes conocidos para el combo box de jugadores (no requiere saber de fútbol)
@@ -114,6 +180,61 @@ export const ENTRENADORES_POR_SELECCION: Record<string, string> = {
   Uzbekistán: 'Srečko Katanec',
   Curazao: 'Dick Advocaat',
   Haití: 'Sébastien Migné',
+}
+
+// Ranking FIFA masculino aproximado (julio 2026, tras la final del Mundial)
+// de cada selección clasificada, según FIFA/prensa deportiva. Se usa solo
+// como valor inicial sugerido al cargar las selecciones oficiales: el campo
+// sigue siendo editable en el formulario.
+export const FIFA_RANKING_POR_SELECCION: Record<string, number> = {
+  España: 1,
+  Argentina: 2,
+  Francia: 3,
+  Inglaterra: 4,
+  Brasil: 5,
+  Marruecos: 6,
+  Portugal: 7,
+  Bélgica: 8,
+  'Países Bajos': 9,
+  México: 10,
+  Colombia: 11,
+  Alemania: 12,
+  Croacia: 13,
+  Suiza: 14,
+  'Estados Unidos': 16,
+  Japón: 17,
+  Senegal: 18,
+  Noruega: 19,
+  Uruguay: 20,
+  Irán: 22,
+  Austria: 23,
+  Egipto: 24,
+  Ecuador: 25,
+  Turquía: 27,
+  Australia: 28,
+  Argelia: 29,
+  Canadá: 30,
+  'Costa de Marfil': 31,
+  'Corea del Sur': 32,
+  Paraguay: 34,
+  Suecia: 37,
+  'RD del Congo': 41,
+  Escocia: 42,
+  Panamá: 44,
+  'República Checa': 48,
+  'Arabia Saudita': 60,
+  Túnez: 52,
+  Ghana: 54,
+  'Bosnia y Herzegovina': 56,
+  Catar: 58,
+  Uzbekistán: 62,
+  Sudáfrica: 65,
+  Irak: 68,
+  Jordania: 70,
+  'Cabo Verde': 72,
+  Curazao: 80,
+  Haití: 85,
+  'Nueva Zelanda': 95,
 }
 
 // Lista plana (fallback mientras no se conoce la selección elegida)

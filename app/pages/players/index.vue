@@ -1,8 +1,10 @@
 <script setup lang="ts">
 import { POSICIONES_JUGADOR } from '~/utils/worldCupData'
+import { CONVOCADOS_POR_SELECCION } from '~/utils/rosterData'
 
-const { players, loading, error, fetchAllPlayers } = usePlayers()
+const { players, loading, error, fetchAllPlayers, createPlayer } = usePlayers()
 const { teams, fetchTeams } = useTeams()
+const { user } = useAuth()
 
 const busqueda = ref('')
 const posicionFiltro = ref('')
@@ -29,6 +31,87 @@ const jugadoresFiltrados = computed(() => {
     return coincideTexto && coincidePosicion
   })
 })
+
+// Paginación del listado de jugadores
+const JUGADORES_POR_PAGINA = 16
+const paginaActual = ref(1)
+
+watch([busqueda, posicionFiltro], () => {
+  paginaActual.value = 1
+})
+
+const totalPaginas = computed(() =>
+  Math.max(1, Math.ceil(jugadoresFiltrados.value.length / JUGADORES_POR_PAGINA)),
+)
+
+watch(totalPaginas, (total) => {
+  if (paginaActual.value > total) paginaActual.value = total
+})
+
+const jugadoresPaginados = computed(() => {
+  const inicio = (paginaActual.value - 1) * JUGADORES_POR_PAGINA
+  return jugadoresFiltrados.value.slice(inicio, inicio + JUGADORES_POR_PAGINA)
+})
+
+// Carga masiva: crea los 26 convocados oficiales de cada selección que ya
+// exista en Firestore. Si un jugador no trae número, se le asigna el
+// siguiente disponible (reservando el 1 para porteros).
+const asignarNumeros = (jugadores: typeof CONVOCADOS_POR_SELECCION[string]) => {
+  const usados = new Set(jugadores.filter((j) => j.number).map((j) => j.number as number))
+  let siguiente = 2
+  return jugadores.map((j) => {
+    if (j.number) return j
+    if (j.position === 'Portero' && !usados.has(1)) {
+      usados.add(1)
+      return { ...j, number: 1 }
+    }
+    while (usados.has(siguiente)) siguiente++
+    usados.add(siguiente)
+    return { ...j, number: siguiente }
+  })
+}
+
+const cargandoConvocados = ref(false)
+const resultadoConvocados = ref('')
+
+const cargarConvocadosOficiales = async () => {
+  cargandoConvocados.value = true
+  resultadoConvocados.value = ''
+  let creados = 0
+  let omitidos = 0
+  let fallidos = 0
+  try {
+    for (const team of teams.value) {
+      const convocatoria = CONVOCADOS_POR_SELECCION[team.name]
+      if (!convocatoria) continue
+      const yaTienePlantilla = players.value.some((p) => p.teamId === team.id)
+      if (yaTienePlantilla) {
+        omitidos += convocatoria.length
+        continue
+      }
+      for (const jugador of asignarNumeros(convocatoria)) {
+        try {
+          await createPlayer({
+            teamId: team.id,
+            name: jugador.name,
+            number: jugador.number as number,
+            position: jugador.position,
+            club: jugador.club ?? 'Sin club',
+            titular: false,
+          })
+          creados++
+        } catch (err) {
+          console.error(`No se pudo crear ${jugador.name} (${team.name}):`, err)
+          fallidos++
+        }
+      }
+    }
+    await cargar()
+    resultadoConvocados.value = `Listo: ${creados} jugadores creados, ${omitidos} ya tenían plantilla${fallidos ? `, ${fallidos} fallaron` : ''}.`
+  } finally {
+    cargandoConvocados.value = false
+  }
+}
 </script>
 
 <template>
@@ -54,7 +137,16 @@ const jugadoresFiltrados = computed(() => {
       <button class="btn-refetch" @click="cargar" :disabled="loading">
         Actualizar
       </button>
+      <button v-if="user" class="btn-refetch" :disabled="cargandoConvocados" @click="cargarConvocadosOficiales">
+        {{ cargandoConvocados ? 'Cargando...' : '⚡ Cargar convocados oficiales' }}
+      </button>
     </div>
+
+    <p v-if="resultadoConvocados" class="state-text">{{ resultadoConvocados }}</p>
+
+    <p v-if="!loading && !error" class="results-count">
+      {{ jugadoresFiltrados.length }} jugador{{ jugadoresFiltrados.length === 1 ? '' : 'es' }} en total
+    </p>
 
     <!-- Estado: cargando -->
     <div v-if="loading" class="state-box">
@@ -76,29 +168,33 @@ const jugadoresFiltrados = computed(() => {
     </div>
 
     <!-- Listado -->
-    <div v-else class="players-grid">
-      <NuxtLink
-        v-for="player in jugadoresFiltrados"
-        :key="player.id"
-        :to="`/teams/${player.teamId}/players`"
-        class="player-card glass animate-slide-up"
-      >
-        <span class="player-card__number">{{ player.number }}</span>
-        <div class="player-card__info">
-          <p class="player-card__name">{{ player.name }}</p>
-          <p class="player-card__meta">{{ player.position }} · {{ player.club || 'Sin club' }}</p>
-          <p v-if="equipoPorId.get(player.teamId)" class="player-card__team">
-            <img
-              v-if="equipoPorId.get(player.teamId)?.flag"
-              :src="equipoPorId.get(player.teamId)?.flag"
-              :alt="equipoPorId.get(player.teamId)?.name"
-              class="player-card__flag"
-            />
-            {{ equipoPorId.get(player.teamId)?.name }}
-          </p>
-        </div>
-      </NuxtLink>
-    </div>
+    <template v-else>
+      <div class="players-grid">
+        <NuxtLink
+          v-for="player in jugadoresPaginados"
+          :key="player.id"
+          :to="`/teams/${player.teamId}/players`"
+          class="player-card glass animate-slide-up"
+        >
+          <span class="player-card__number">{{ player.number }}</span>
+          <div class="player-card__info">
+            <p class="player-card__name">{{ player.name }}</p>
+            <p class="player-card__meta">{{ player.position }} · {{ player.club || 'Sin club' }}</p>
+            <p v-if="equipoPorId.get(player.teamId)" class="player-card__team">
+              <img
+                v-if="equipoPorId.get(player.teamId)?.flag"
+                :src="equipoPorId.get(player.teamId)?.flag"
+                :alt="equipoPorId.get(player.teamId)?.name"
+                class="player-card__flag"
+              />
+              {{ equipoPorId.get(player.teamId)?.name }}
+            </p>
+          </div>
+        </NuxtLink>
+      </div>
+
+      <Pagination v-model:pagina-actual="paginaActual" :total-paginas="totalPaginas" />
+    </template>
   </div>
 </template>
 
@@ -125,6 +221,11 @@ const jugadoresFiltrados = computed(() => {
   display: flex;
   gap: var(--space-md);
   flex-wrap: wrap;
+}
+
+.results-count {
+  color: var(--text-muted);
+  font-size: 0.85rem;
 }
 
 .filters__search {
