@@ -98,6 +98,22 @@ export const ENTRENADORES_POR_SELECCION: Record<string, string> = {
   Australia: 'Tony Popovic',
   Catar: 'Luis García',
   'Nueva Zelanda': 'Darren Bazeley',
+  Austria: 'Ralf Rangnick',
+  'Bosnia y Herzegovina': 'Sergej Barbarez',
+  Escocia: 'Steve Clarke',
+  Noruega: 'Ståle Solbakken',
+  'República Checa': 'Ivan Hašek',
+  Suecia: 'Jon Dahl Tomasson',
+  Turquía: 'Vincenzo Montella',
+  'Cabo Verde': 'Bubista',
+  'Costa de Marfil': 'Emerse Faé',
+  'RD del Congo': 'Sébastien Desabre',
+  Sudáfrica: 'Hugo Broos',
+  Irak: 'Graham Arnold',
+  Jordania: 'Hussein Ammouta',
+  Uzbekistán: 'Srečko Katanec',
+  Curazao: 'Dick Advocaat',
+  Haití: 'Sébastien Migné',
 }
 
 // Lista plana (fallback mientras no se conoce la selección elegida)
@@ -105,11 +121,8 @@ export const ENTRENADORES_REFERENCIA = [
   ...new Set(Object.values(ENTRENADORES_POR_SELECCION)),
 ] as const
 
-// Jugadores REALES confirmados en la convocatoria 2026 de cada selección
-// (fuente: cobertura de prensa de la convocatoria final, mayo-junio 2026).
-// Solo se completan las selecciones con datos verificados; el resto del
-// listado se deja vacío a propósito -> el combo cae directo a
-// "Otro / Escribir nombre" en vez de inventar un jugador que no existe.
+// Jugadores REALES de referencia (figuras conocidas) de cada selección
+// clasificada al Mundial 2026, según cobertura de prensa deportiva.
 export const NOMBRES_JUGADORES_POR_SELECCION: Record<string, readonly string[]> = {
   Argentina: ['Lionel Messi', 'Julián Álvarez', 'Lautaro Martínez', 'Enzo Fernández', 'Rodrigo De Paul', 'Emiliano Martínez'],
   Brasil: ['Vinícius Júnior', 'Neymar', 'Matheus Cunha', 'Raphinha', 'Gabriel Martinelli', 'Endrick'],
@@ -132,6 +145,33 @@ export const NOMBRES_JUGADORES_POR_SELECCION: Record<string, readonly string[]> 
   Japón: ['Wataru Endo', 'Kaoru Mitoma', 'Daichi Kamada', 'Ao Tanaka', 'Daizen Maeda'],
   'Corea del Sur': ['Son Heung-min', 'Lee Jae-sung', 'Hwang Hee-chan', 'Kim Min-jae'],
   Australia: ['Mathew Leckie', 'Nestory Irankunda'],
+  Alemania: ['Jamal Musiala', 'Florian Wirtz', 'Kai Havertz', 'Joshua Kimmich', 'Manuel Neuer'],
+  España: ['Lamine Yamal', 'Pedri', 'Nico Williams', 'Álvaro Morata', 'Rodri'],
+  Bélgica: ['Kevin De Bruyne', 'Romelu Lukaku', 'Jérémy Doku'],
+  Austria: ['David Alaba', 'Marcel Sabitzer', 'Christoph Baumgartner'],
+  'Bosnia y Herzegovina': ['Edin Džeko'],
+  Escocia: ['Andy Robertson', 'Scott McTominay'],
+  Noruega: ['Erling Haaland', 'Martin Ødegaard'],
+  'República Checa': ['Patrik Schick'],
+  Suecia: ['Alexander Isak', 'Viktor Gyökeres'],
+  Suiza: ['Granit Xhaka', 'Manuel Akanji'],
+  Turquía: ['Arda Güler', 'Kenan Yıldız'],
+  Argelia: ['Riyad Mahrez'],
+  'Cabo Verde': ['Ryan Mendes'],
+  'Costa de Marfil': ['Sébastien Haller', 'Franck Kessié'],
+  Ghana: ['Mohammed Kudus', 'Thomas Partey'],
+  'RD del Congo': ['Chancel Mbemba'],
+  Sudáfrica: ['Percy Tau'],
+  Túnez: ['Ellyes Skhiri'],
+  'Arabia Saudita': ['Salem Al-Dawsari'],
+  Catar: ['Akram Afif'],
+  Irak: ['Ayman Hussein'],
+  Irán: ['Mehdi Taremi'],
+  Jordania: ['Musa Al-Taamari'],
+  Uzbekistán: ['Eldor Shomurodov'],
+  'Nueva Zelanda': ['Chris Wood'],
+  Curazao: ['Juninho Bacuna'],
+  Haití: ['Duckens Nazon'],
 }
 
 // Lista plana (fallback general, solo jugadores verificados de cualquier selección)
