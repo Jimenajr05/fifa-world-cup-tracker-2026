@@ -1,10 +1,10 @@
 <script setup lang="ts">
 import type { Match } from '~/composables/useMatches'
-import { buscarSeleccionPorNombre } from '~/utils/worldCupData'
+import { GRUPOS, buscarSeleccionPorNombre, urlBanderaPorCodigo } from '~/utils/worldCupData'
 
 const { RONDAS, generando, error, generarDieciseisavos, fetchRonda } = useBracket()
-const { teams, fetchTeams } = useTeams()
 const { user } = useAuth()
+const { teams, fetchTeams } = useTeams()
 
 const columnas = ref<{ ronda: string; partidos: Match[] }[]>([])
 const loadingBracket = ref(false)
@@ -43,7 +43,6 @@ const generar = async () => {
   await cargarBracket()
 }
 
-<<<<<<< HEAD
 const nombreEquipo = (nombre: string) => (nombre === 'Por definir' ? 'Por definir' : nombre)
 
 // Divide cada ronda (menos Final) en mitad izquierda/derecha del cuadro,
@@ -75,140 +74,44 @@ const campeon = computed(() => {
   if (!finalMatch.value || finalMatch.value.status !== 'Finalizado') return null
   if (finalMatch.value.homeScore === null || finalMatch.value.awayScore === null) return null
   return finalMatch.value.homeScore > finalMatch.value.awayScore ? finalMatch.value.homeTeam : finalMatch.value.awayTeam
-=======
-// ── Bandera + código corto de un equipo, a partir del nombre ────────────
+})
+
+// ── Bandera de un equipo dado su nombre (usada en las tarjetas de partido) ──
 const equipoPorNombre = computed(() => new Map(teams.value.map((t) => [t.name, t])))
-const infoEquipo = (nombre: string) => {
-  if (!nombre || nombre === 'Por definir') return { flag: '', code: '?' }
-  const team = equipoPorNombre.value.get(nombre)
-  const ref = buscarSeleccionPorNombre(nombre)
-  return {
-    flag: team?.flag || (ref ? `https://flagcdn.com/w160/${ref.code}.png` : ''),
-    code: (ref?.code || nombre.slice(0, 3)).toUpperCase(),
-  }
+const banderaEquipo = (nombre: string): string | null => {
+  if (!nombre || nombre === 'Por definir') return null
+  const equipo = equipoPorNombre.value.get(nombre)
+  if (equipo?.flag) return equipo.flag
+  const seleccion = buscarSeleccionPorNombre(nombre)
+  return seleccion ? urlBanderaPorCodigo(seleccion.code) : null
 }
 
-// ══════════════════════════════════════════════════════════════════════
-// Geometría del bracket: dos mitades (izquierda/derecha) que convergen en
-// la Final, calculadas en píxeles para poder dibujar las líneas conectoras
-// con divs absolutos (sin SVG). Cada mitad tiene 8-4-2-1 partidos por ronda.
-// ══════════════════════════════════════════════════════════════════════
-const ROUND_W = 180
-const GAP = 46
-const COL_W = ROUND_W + GAP
-const ROW_H = 58
-const CARD_H = 52
-const BASE_HALF = 8 // partidos de Dieciseisavos en cada mitad
-const TOTAL_H = BASE_HALF * ROW_H
-const HEADER_H = 40
-const THIRD_PLACE_GAP = 70
-
-const leftColX = [0, 1, 2, 3].map((r) => r * COL_W)
-const finalX = 4 * COL_W
-const centerAxis = finalX + ROUND_W / 2
-const rightColX = [0, 1, 2, 3].map((r) => 2 * centerAxis - leftColX[r]! - ROUND_W)
-
-const totalWidth = rightColX[0]! + ROUND_W
-const totalHeight = HEADER_H + TOTAL_H + THIRD_PLACE_GAP + CARD_H + 30
-
-const spanOf = (r: number) => ROW_H * 2 ** r
-const centerYOf = (r: number, i: number) => HEADER_H + i * spanOf(r) + spanOf(r) / 2
-
-const nombresRondas = ['Dieciseisavos', 'Octavos', 'Cuartos', 'Semifinal'] as const
-
-const partidoEnPosicion = (ronda: string, bracketPosition: number): Match | null => {
-  const columna = columnas.value.find((c) => c.ronda === ronda)
-  return columna?.partidos.find((p) => (p.bracketPosition ?? 0) === bracketPosition) ?? null
+// ── Paneles de grupos (decorativos) a los costados del bracket, como en el
+// cuadro oficial: cada grupo con su color y las banderas de sus 4 equipos.
+const COLORES_GRUPO: Record<string, string> = {
+  A: '#22c55e',
+  B: '#ef4444',
+  C: '#f97316',
+  D: '#3b82f6',
+  E: '#a855f7',
+  F: '#14b8a6',
+  G: '#ec4899',
+  H: '#84cc16',
+  I: '#8b5cf6',
+  J: '#0ea5e9',
+  K: '#f43f5e',
+  L: '#eab308',
 }
 
-interface BracketBox {
-  id: string
-  x: number
-  y: number
-  match: Match | null
-  esFinal?: boolean
-}
-
-interface BracketLine {
-  id: string
-  left: number
-  top: number
-  width: number
-  height: number
-  vertical?: boolean
-}
-
-const cajas = computed<BracketBox[]>(() => {
-  const boxes: BracketBox[] = []
-  for (const side of ['left', 'right'] as const) {
-    const colX = side === 'left' ? leftColX : rightColX
-    for (let r = 0; r < 4; r++) {
-      const count = BASE_HALF / 2 ** r
-      const ronda = nombresRondas[r]!
-      for (let i = 0; i < count; i++) {
-        const bracketPosition = side === 'left' ? i : i + count
-        boxes.push({
-          id: `${side}-${ronda}-${i}`,
-          x: colX[r]!,
-          y: centerYOf(r, i) - CARD_H / 2,
-          match: partidoEnPosicion(ronda, bracketPosition),
-        })
-      }
-    }
-  }
-  // Final: un único cruce en el centro
-  boxes.push({
-    id: 'final',
-    x: finalX,
-    y: HEADER_H + TOTAL_H / 2 - CARD_H / 2,
-    match: partidoEnPosicion('Final', 0),
-    esFinal: true,
-  })
-  return boxes
-})
-
-const cajaTercerLugar = computed<BracketBox>(() => ({
-  id: 'tercer-lugar',
-  x: finalX,
-  y: HEADER_H + TOTAL_H + THIRD_PLACE_GAP - CARD_H / 2,
-  match: partidoEnPosicion('Tercer lugar', 0),
-}))
-
-const lineas = computed<BracketLine[]>(() => {
-  const lines: BracketLine[] = []
-  let n = 0
-  const push = (l: Omit<BracketLine, 'id'>) => lines.push({ id: `line-${n++}`, ...l })
-
-  for (const side of ['left', 'right'] as const) {
-    const colX = side === 'left' ? leftColX : rightColX
-
-    for (let r = 0; r < 3; r++) {
-      const childCount = BASE_HALF / 2 ** r
-      const pares = childCount / 2
-      for (let p = 0; p < pares; p++) {
-        const y0 = centerYOf(r, p * 2)
-        const y1 = centerYOf(r, p * 2 + 1)
-        const parentY = centerYOf(r + 1, p)
-        const xEdgeChild = side === 'left' ? colX[r]! + ROUND_W : colX[r]!
-        const xEdgeParent = side === 'left' ? colX[r + 1]! : colX[r + 1]! + ROUND_W
-        const xMid = (xEdgeChild + xEdgeParent) / 2
-
-        push({ left: Math.min(xEdgeChild, xMid), top: y0, width: Math.abs(xMid - xEdgeChild), height: 2 })
-        push({ left: Math.min(xEdgeChild, xMid), top: y1, width: Math.abs(xMid - xEdgeChild), height: 2 })
-        push({ left: xMid, top: Math.min(y0, y1), width: 2, height: Math.abs(y1 - y0), vertical: true })
-        push({ left: Math.min(xMid, xEdgeParent), top: parentY, width: Math.abs(xEdgeParent - xMid), height: 2 })
-      }
-    }
-
-    // Semifinal (única por mitad) → Final: ambas quedan a la misma altura
-    const ySemi = centerYOf(3, 0)
-    const xEdgeSemi = side === 'left' ? colX[3]! + ROUND_W : colX[3]!
-    const xEdgeFinal = side === 'left' ? finalX : finalX + ROUND_W
-    push({ left: Math.min(xEdgeSemi, xEdgeFinal), top: ySemi, width: Math.abs(xEdgeFinal - xEdgeSemi), height: 2 })
-  }
-  return lines
->>>>>>> cba1885 (Reflejar validaciones y errores en la UI de paginas existentes)
-})
+const gruposConEquipos = computed(() =>
+  GRUPOS.map((letra) => ({
+    letra,
+    color: COLORES_GRUPO[letra] ?? '#f5c518',
+    equipos: teams.value.filter((t) => t.group === letra),
+  })),
+)
+const gruposIzquierda = computed(() => gruposConEquipos.value.slice(0, 6))
+const gruposDerecha = computed(() => gruposConEquipos.value.slice(6, 12))
 </script>
 
 <template>
@@ -256,9 +159,29 @@ const lineas = computed<BracketLine[]>(() => {
       </p>
     </div>
 
-<<<<<<< HEAD
     <!-- Cuadro completo -->
     <div v-else class="bracket-tree">
+      <!-- Columna de grupos A-F -->
+      <div class="groups-col">
+        <div
+          v-for="grupo in gruposIzquierda"
+          :key="`g-${grupo.letra}`"
+          class="group-box"
+          :style="{ '--group-color': grupo.color }"
+        >
+          <div class="group-box__flags">
+            <img
+              v-for="equipo in grupo.equipos"
+              :key="equipo.id"
+              :src="equipo.flag"
+              :alt="equipo.name"
+              class="group-box__flag"
+            />
+          </div>
+          <span class="group-box__label">Grupo {{ grupo.letra }}</span>
+        </div>
+      </div>
+
       <!-- Mitad izquierda -->
       <div class="bracket-half">
         <div v-for="grupo in mitadIzquierda" :key="`i-${grupo.ronda}`" class="bracket-round">
@@ -271,10 +194,14 @@ const lineas = computed<BracketLine[]>(() => {
               class="bracket-match glass"
             >
               <div class="bracket-match__row">
+                <img v-if="banderaEquipo(partido.homeTeam)" :src="banderaEquipo(partido.homeTeam)!" class="bracket-match__flag" alt="" />
+                <span v-else class="bracket-match__flag bracket-match__flag--empty">🏳️</span>
                 <span class="bracket-match__team">{{ nombreEquipo(partido.homeTeam) }}</span>
                 <span class="bracket-match__score">{{ partido.homeScore ?? '-' }}</span>
               </div>
               <div class="bracket-match__row">
+                <img v-if="banderaEquipo(partido.awayTeam)" :src="banderaEquipo(partido.awayTeam)!" class="bracket-match__flag" alt="" />
+                <span v-else class="bracket-match__flag bracket-match__flag--empty">🏳️</span>
                 <span class="bracket-match__team">{{ nombreEquipo(partido.awayTeam) }}</span>
                 <span class="bracket-match__score">{{ partido.awayScore ?? '-' }}</span>
               </div>
@@ -285,7 +212,7 @@ const lineas = computed<BracketLine[]>(() => {
 
       <!-- Centro: Campeón + Final + Tercer lugar -->
       <div class="bracket-center">
-        <span class="bracket-center__label">Campeón del mundo</span>
+        <span class="bracket-center__label">World Champions</span>
         <div class="bracket-trophy">
           <span class="bracket-trophy__icon">🏆</span>
           <span class="bracket-trophy__team">{{ campeon ?? '¿Quién será?' }}</span>
@@ -295,10 +222,14 @@ const lineas = computed<BracketLine[]>(() => {
           <span class="bracket-round__label">Final</span>
           <NuxtLink :to="`/matches/${finalMatch.id}`" class="bracket-match bracket-match--final glass-strong">
             <div class="bracket-match__row">
+              <img v-if="banderaEquipo(finalMatch.homeTeam)" :src="banderaEquipo(finalMatch.homeTeam)!" class="bracket-match__flag" alt="" />
+              <span v-else class="bracket-match__flag bracket-match__flag--empty">🏳️</span>
               <span class="bracket-match__team">{{ nombreEquipo(finalMatch.homeTeam) }}</span>
               <span class="bracket-match__score">{{ finalMatch.homeScore ?? '-' }}</span>
             </div>
             <div class="bracket-match__row">
+              <img v-if="banderaEquipo(finalMatch.awayTeam)" :src="banderaEquipo(finalMatch.awayTeam)!" class="bracket-match__flag" alt="" />
+              <span v-else class="bracket-match__flag bracket-match__flag--empty">🏳️</span>
               <span class="bracket-match__team">{{ nombreEquipo(finalMatch.awayTeam) }}</span>
               <span class="bracket-match__score">{{ finalMatch.awayScore ?? '-' }}</span>
             </div>
@@ -306,13 +237,17 @@ const lineas = computed<BracketLine[]>(() => {
         </div>
 
         <div v-if="tercerLugarMatch" class="bracket-round bracket-round--bronze">
-          <span class="bracket-round__label">🥉 Tercer lugar</span>
+          <span class="bracket-round__label">🥉 Bronze Winner</span>
           <NuxtLink :to="`/matches/${tercerLugarMatch.id}`" class="bracket-match glass">
             <div class="bracket-match__row">
+              <img v-if="banderaEquipo(tercerLugarMatch.homeTeam)" :src="banderaEquipo(tercerLugarMatch.homeTeam)!" class="bracket-match__flag" alt="" />
+              <span v-else class="bracket-match__flag bracket-match__flag--empty">🏳️</span>
               <span class="bracket-match__team">{{ nombreEquipo(tercerLugarMatch.homeTeam) }}</span>
               <span class="bracket-match__score">{{ tercerLugarMatch.homeScore ?? '-' }}</span>
             </div>
             <div class="bracket-match__row">
+              <img v-if="banderaEquipo(tercerLugarMatch.awayTeam)" :src="banderaEquipo(tercerLugarMatch.awayTeam)!" class="bracket-match__flag" alt="" />
+              <span v-else class="bracket-match__flag bracket-match__flag--empty">🏳️</span>
               <span class="bracket-match__team">{{ nombreEquipo(tercerLugarMatch.awayTeam) }}</span>
               <span class="bracket-match__score">{{ tercerLugarMatch.awayScore ?? '-' }}</span>
             </div>
@@ -332,112 +267,41 @@ const lineas = computed<BracketLine[]>(() => {
               class="bracket-match glass"
             >
               <div class="bracket-match__row">
+                <img v-if="banderaEquipo(partido.homeTeam)" :src="banderaEquipo(partido.homeTeam)!" class="bracket-match__flag" alt="" />
+                <span v-else class="bracket-match__flag bracket-match__flag--empty">🏳️</span>
                 <span class="bracket-match__team">{{ nombreEquipo(partido.homeTeam) }}</span>
                 <span class="bracket-match__score">{{ partido.homeScore ?? '-' }}</span>
               </div>
               <div class="bracket-match__row">
+                <img v-if="banderaEquipo(partido.awayTeam)" :src="banderaEquipo(partido.awayTeam)!" class="bracket-match__flag" alt="" />
+                <span v-else class="bracket-match__flag bracket-match__flag--empty">🏳️</span>
                 <span class="bracket-match__team">{{ nombreEquipo(partido.awayTeam) }}</span>
                 <span class="bracket-match__score">{{ partido.awayScore ?? '-' }}</span>
               </div>
             </NuxtLink>
           </div>
         </div>
-=======
-    <!-- Bracket tipo árbol -->
-    <div v-else class="bracket-scroll">
-      <div class="bracket-tree" :style="{ width: totalWidth + 'px', height: totalHeight + 'px' }">
-        <!-- Encabezados de ronda -->
-        <template v-for="side in ['left', 'right']" :key="side">
-          <span
-            v-for="(nombre, r) in nombresRondas"
-            :key="`${side}-h-${r}`"
-            class="round-label"
-            :style="{
-              left: (side === 'left' ? leftColX[r] : rightColX[r]) + 'px',
-              top: '4px',
-              width: ROUND_W + 'px',
-            }"
-          >
-            {{ nombre }}
-          </span>
-        </template>
-        <span class="round-label round-label--final" :style="{ left: finalX + 'px', top: '4px', width: ROUND_W + 'px' }">
-          Final
-        </span>
+      </div>
 
-        <!-- Trofeo decorativo en el centro -->
-        <div class="trophy" :style="{ left: finalX - 30 + ROUND_W / 2 + 'px', top: HEADER_H + TOTAL_H / 2 - 90 + 'px' }">
-          🏆
-        </div>
-
-        <!-- Líneas conectoras -->
+      <!-- Columna de grupos G-L -->
+      <div class="groups-col">
         <div
-          v-for="linea in lineas"
-          :key="linea.id"
-          class="bracket-line"
-          :class="{ 'bracket-line--vertical': linea.vertical }"
-          :style="{ left: linea.left + 'px', top: linea.top + 'px', width: linea.width + 'px', height: linea.height + 'px' }"
-        />
-
-        <!-- Partidos -->
-        <NuxtLink
-          v-for="caja in cajas"
-          :key="caja.id"
-          :to="caja.match ? `/matches/${caja.match.id}` : ''"
-          class="bracket-box"
-          :class="{ 'bracket-box--final': caja.esFinal, 'bracket-box--empty': !caja.match }"
-          :style="{ left: caja.x + 'px', top: caja.y + 'px', width: ROUND_W + 'px', height: CARD_H + 'px' }"
+          v-for="grupo in gruposDerecha"
+          :key="`g-${grupo.letra}`"
+          class="group-box"
+          :style="{ '--group-color': grupo.color }"
         >
-          <template v-if="caja.match">
-            <div class="bracket-box__row">
-              <img v-if="infoEquipo(caja.match.homeTeam).flag" :src="infoEquipo(caja.match.homeTeam).flag" class="bracket-box__flag" alt="" />
-              <span v-else class="bracket-box__flag bracket-box__flag--empty">🏳️</span>
-              <span class="bracket-box__code">{{ infoEquipo(caja.match.homeTeam).code }}</span>
-              <span class="bracket-box__score">{{ caja.match.homeScore ?? '' }}</span>
-            </div>
-            <div class="bracket-box__row">
-              <img v-if="infoEquipo(caja.match.awayTeam).flag" :src="infoEquipo(caja.match.awayTeam).flag" class="bracket-box__flag" alt="" />
-              <span v-else class="bracket-box__flag bracket-box__flag--empty">🏳️</span>
-              <span class="bracket-box__code">{{ infoEquipo(caja.match.awayTeam).code }}</span>
-              <span class="bracket-box__score">{{ caja.match.awayScore ?? '' }}</span>
-            </div>
-          </template>
-          <template v-else>
-            <div class="bracket-box__row bracket-box__row--placeholder"><span>?</span></div>
-            <div class="bracket-box__row bracket-box__row--placeholder"><span>?</span></div>
-          </template>
-        </NuxtLink>
-
-        <!-- Tercer lugar -->
-        <span class="round-label" :style="{ left: cajaTercerLugar.x + 'px', top: cajaTercerLugar.y - 24 + 'px', width: ROUND_W + 'px' }">
-          3er Lugar
-        </span>
-        <NuxtLink
-          :to="cajaTercerLugar.match ? `/matches/${cajaTercerLugar.match.id}` : ''"
-          class="bracket-box bracket-box--third"
-          :class="{ 'bracket-box--empty': !cajaTercerLugar.match }"
-          :style="{ left: cajaTercerLugar.x + 'px', top: cajaTercerLugar.y + 'px', width: ROUND_W + 'px', height: CARD_H + 'px' }"
-        >
-          <template v-if="cajaTercerLugar.match">
-            <div class="bracket-box__row">
-              <img v-if="infoEquipo(cajaTercerLugar.match.homeTeam).flag" :src="infoEquipo(cajaTercerLugar.match.homeTeam).flag" class="bracket-box__flag" alt="" />
-              <span v-else class="bracket-box__flag bracket-box__flag--empty">🏳️</span>
-              <span class="bracket-box__code">{{ infoEquipo(cajaTercerLugar.match.homeTeam).code }}</span>
-              <span class="bracket-box__score">{{ cajaTercerLugar.match.homeScore ?? '' }}</span>
-            </div>
-            <div class="bracket-box__row">
-              <img v-if="infoEquipo(cajaTercerLugar.match.awayTeam).flag" :src="infoEquipo(cajaTercerLugar.match.awayTeam).flag" class="bracket-box__flag" alt="" />
-              <span v-else class="bracket-box__flag bracket-box__flag--empty">🏳️</span>
-              <span class="bracket-box__code">{{ infoEquipo(cajaTercerLugar.match.awayTeam).code }}</span>
-              <span class="bracket-box__score">{{ cajaTercerLugar.match.awayScore ?? '' }}</span>
-            </div>
-          </template>
-          <template v-else>
-            <div class="bracket-box__row bracket-box__row--placeholder"><span>?</span></div>
-            <div class="bracket-box__row bracket-box__row--placeholder"><span>?</span></div>
-          </template>
-        </NuxtLink>
->>>>>>> cba1885 (Reflejar validaciones y errores en la UI de paginas existentes)
+          <div class="group-box__flags">
+            <img
+              v-for="equipo in grupo.equipos"
+              :key="equipo.id"
+              :src="equipo.flag"
+              :alt="equipo.name"
+              class="group-box__flag"
+            />
+          </div>
+          <span class="group-box__label">Grupo {{ grupo.letra }}</span>
+        </div>
       </div>
     </div>
   </div>
@@ -545,7 +409,6 @@ const lineas = computed<BracketLine[]>(() => {
   animation: spin 0.8s linear infinite;
 }
 
-<<<<<<< HEAD
 /* Cuadro completo: izquierda | centro | derecha */
 .bracket-tree {
   display: flex;
@@ -576,43 +439,17 @@ const lineas = computed<BracketLine[]>(() => {
 .bracket-round__label {
   font-size: 0.72rem;
   font-weight: 700;
-=======
-/* ── Bracket en árbol ─────────────────────────────────────────── */
-.bracket-scroll {
-  overflow-x: auto;
-  padding-bottom: var(--space-lg);
-  border-radius: var(--radius-lg);
-  background: radial-gradient(ellipse at center, rgba(255, 214, 10, 0.05), transparent 65%), #0a0e1a;
-  border: 1px solid var(--border-glass);
-}
-
-.bracket-tree {
-  position: relative;
-  margin: 0 auto;
-}
-
-.round-label {
-  position: absolute;
-  text-align: center;
-  font-size: 0.7rem;
-  font-weight: 800;
->>>>>>> cba1885 (Reflejar validaciones y errores en la UI de paginas existentes)
   color: var(--text-gold);
   text-transform: uppercase;
   letter-spacing: 0.06em;
 }
 
-<<<<<<< HEAD
 .bracket-round__matches {
   display: flex;
   flex-direction: column;
   justify-content: space-around;
   gap: var(--space-lg);
   flex: 1;
-=======
-.round-label--final {
-  color: #fff;
->>>>>>> cba1885 (Reflejar validaciones y errores en la UI de paginas existentes)
 }
 
 .trophy {
@@ -633,7 +470,6 @@ const lineas = computed<BracketLine[]>(() => {
   position: absolute;
   display: flex;
   flex-direction: column;
-<<<<<<< HEAD
   gap: 6px;
   padding: var(--space-sm) var(--space-md);
   border-radius: var(--radius-md);
@@ -653,90 +489,81 @@ const lineas = computed<BracketLine[]>(() => {
 .bracket-match__row {
   display: flex;
   align-items: center;
-  justify-content: space-between;
   gap: var(--space-sm);
   font-size: 0.8rem;
   font-weight: 600;
-=======
-  justify-content: center;
-  gap: 4px;
-  padding: 6px 10px;
-  border-radius: var(--radius-sm);
-  background: var(--bg-surface);
-  border: 1px solid var(--border-subtle);
-  transition: transform var(--transition-fast), border-color var(--transition-fast);
-  z-index: 1;
 }
 
-.bracket-box:hover {
-  transform: scale(1.03);
-  border-color: var(--gold-start);
-  z-index: 2;
-}
-
-.bracket-box--final {
-  border-color: rgba(255, 214, 10, 0.5);
-  background: rgba(255, 214, 10, 0.06);
-}
-
-.bracket-box--third {
-  border-style: dashed;
-}
-
-.bracket-box--empty {
-  opacity: 0.55;
-  cursor: default;
-  pointer-events: none;
-}
-
-.bracket-box__row {
-  display: flex;
-  align-items: center;
-  gap: 6px;
-  font-size: 0.72rem;
-  font-weight: 700;
->>>>>>> cba1885 (Reflejar validaciones y errores en la UI de paginas existentes)
-}
-
-.bracket-box__row--placeholder {
-  justify-content: center;
-  color: var(--text-muted);
-  font-weight: 800;
-  font-size: 0.8rem;
-}
-
-.bracket-box__flag {
-  width: 16px;
-  height: 16px;
+.bracket-match__flag {
+  width: 20px;
+  height: 20px;
   border-radius: 50%;
   object-fit: cover;
   flex-shrink: 0;
 }
 
-.bracket-box__flag--empty {
+.bracket-match__flag--empty {
   display: flex;
   align-items: center;
   justify-content: center;
-  font-size: 0.7rem;
+  font-size: 0.8rem;
 }
 
-.bracket-box__code {
+.bracket-match__team {
   flex: 1;
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
 }
 
-.bracket-box__score {
+.bracket-match__score {
   color: var(--text-gold);
-<<<<<<< HEAD
-  font-size: 0.78rem;
-=======
->>>>>>> cba1885 (Reflejar validaciones y errores en la UI de paginas existentes)
   font-weight: 800;
-  font-size: 0.75rem;
+  flex-shrink: 0;
 }
-<<<<<<< HEAD
+
+/* Columnas de grupos (decorativas), a los costados del bracket */
+.groups-col {
+  display: flex;
+  flex-direction: column;
+  justify-content: space-around;
+  gap: var(--space-md);
+  flex: 0 0 auto;
+}
+
+.group-box {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 6px;
+  padding: var(--space-sm);
+  min-width: 96px;
+  border-radius: var(--radius-md);
+  border: 2px solid var(--group-color, var(--border-glass));
+  background: color-mix(in srgb, var(--group-color, #000) 12%, var(--bg-surface));
+}
+
+.group-box__flags {
+  display: grid;
+  grid-template-columns: repeat(2, 1fr);
+  gap: 4px;
+}
+
+.group-box__flag {
+  width: 22px;
+  height: 22px;
+  border-radius: 50%;
+  object-fit: cover;
+  border: 1px solid rgba(255, 255, 255, 0.15);
+}
+
+.group-box__label {
+  font-size: 0.7rem;
+  font-weight: 800;
+  color: var(--group-color, var(--text-gold));
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+}
 
 /* Centro: trofeo + final + tercer lugar */
 .bracket-center {
@@ -778,6 +605,3 @@ const lineas = computed<BracketLine[]>(() => {
   opacity: 0.85;
 }
 </style>
-=======
-</style>
->>>>>>> cba1885 (Reflejar validaciones y errores en la UI de paginas existentes)
