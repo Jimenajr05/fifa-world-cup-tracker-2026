@@ -108,6 +108,27 @@ const guardarEdicionJugador = async () => {
   }
 }
 
+const quitarDeTitulares = async (player: Player) => {
+  guardandoEdicionJugador.value = true
+  errorEdicionJugador.value = ''
+  try {
+    await updatePlayer(player.id, {
+      name: player.name,
+      number: player.number,
+      position: player.position,
+      club: player.club,
+      titular: false,
+    })
+    edicionJugadorId.value = null
+    await fetchPlayersByTeam(id)
+  } catch (err) {
+    console.error('Error al enviar a la banca:', err)
+    errorEdicionJugador.value = mensajeError(err, 'No se pudo actualizar el jugador.')
+  } finally {
+    guardandoEdicionJugador.value = false
+  }
+}
+
 const eliminarJugador = async (player: Player) => {
   const mensaje = player.titular
     ? `${player.name} es titular. ¿Eliminarlo igual de la plantilla?`
@@ -221,42 +242,12 @@ const eliminarJugador = async (player: Player) => {
           <div class="pitch__row" v-for="pos in ['Delantero', 'Mediocampista', 'Defensa', 'Portero']" :key="pos">
             <div v-for="player in porPosicion(pos)" :key="player.id" class="jersey">
               <template v-if="edicionJugadorId === player.id">
-                <form class="player-edit-form jersey-edit-form" @submit.prevent="guardarEdicionJugador">
-                  <div class="player-edit-form__grid">
-                    <select v-model="nombreSeleccionadoEdicion" class="field__input" required>
-                      <option value="" disabled>Selecciona un nombre</option>
-                      <option v-for="n in nombresDisponibles" :key="n" :value="n">{{ n }}</option>
-                    </select>
-                    <input
-                      v-if="escribirNombrePropioEdicion"
-                      v-model="formularioEdicionJugador.name"
-                      type="text"
-                      class="field__input"
-                      placeholder="Escribe el nombre del jugador"
-                      required
-                    />
-                    <input v-model.number="formularioEdicionJugador.number" type="number" min="1" max="26" class="field__input" />
-                    <select v-model="formularioEdicionJugador.position" class="field__input">
-                      <option v-for="p in POSICIONES_JUGADOR" :key="p" :value="p">{{ p }}</option>
-                    </select>
-                    <select v-model="formularioEdicionJugador.club" class="field__input">
-                      <option value="" disabled>Selecciona un club</option>
-                      <option v-for="club in CLUBES_REFERENCIA" :key="club" :value="club">{{ club }}</option>
-                    </select>
-                  </div>
-                  <label class="field__checkbox">
-                    <input v-model="formularioEdicionJugador.titular" type="checkbox" />
-                    <span>Titular</span>
-                  </label>
-                  <p v-if="errorEdicionJugador" class="form-error">{{ errorEdicionJugador }}</p>
-                  <div class="player-edit-form__actions">
-                    <button type="submit" class="btn-edit" :disabled="guardandoEdicionJugador">
-                      {{ guardandoEdicionJugador ? 'Guardando...' : 'Guardar' }}
-                    </button>
-                    <button type="button" class="btn-delete-inline" @click="eliminarJugador(player)">Eliminar</button>
-                    <button type="button" class="btn-cancel" @click="cancelarEdicionJugador">Cancelar</button>
-                  </div>
-                </form>
+                <div class="jersey-actions">
+                  <button type="button" class="icon-btn" title="Cerrar" @click="cancelarEdicionJugador">✕</button>
+                  <button type="button" class="icon-btn icon-btn--gold" title="Enviar a la banca" @click="quitarDeTitulares(player)">⬇</button>
+                  <button type="button" class="icon-btn icon-btn--danger" title="Eliminar" @click="eliminarJugador(player)">🗑</button>
+                </div>
+                <p v-if="errorEdicionJugador" class="form-error jersey-actions__error">{{ errorEdicionJugador }}</p>
               </template>
               <button v-else type="button" class="jersey__button" :class="{ 'jersey__button--static': !user }" @click="seleccionarJugador(player)">
                 <span
@@ -711,8 +702,55 @@ select.field__input {
   max-width: 84px;
 }
 
-.jersey-edit-form {
-  width: 220px;
+.jersey-actions {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 5px;
+  padding: 5px;
+  border-radius: 999px;
+  background: rgba(10, 14, 26, 0.85);
+  backdrop-filter: blur(6px);
+  border: 1px solid var(--border-glass);
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.35);
+  animation: fadeIn 0.15s ease;
+}
+
+.jersey-actions__error {
+  margin-top: 4px;
+  font-size: 0.65rem;
+  text-align: center;
+  max-width: 90px;
+}
+
+.icon-btn {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 26px;
+  height: 26px;
+  border-radius: 50%;
+  background: var(--bg-surface);
+  border: 1px solid var(--border-subtle);
+  color: var(--text-secondary);
+  font-size: 0.75rem;
+  line-height: 1;
+  transition: transform var(--transition-fast), border-color var(--transition-fast);
+}
+
+.icon-btn:hover {
+  transform: scale(1.08);
+}
+
+.icon-btn--gold {
+  background: var(--gold-gradient);
+  border-color: transparent;
+  color: #0a0e1a;
+}
+
+.icon-btn--danger {
+  border-color: rgba(255, 107, 107, 0.35);
+  color: #ff6b6b;
 }
 
 @media (max-width: 860px) {
