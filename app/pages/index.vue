@@ -2,6 +2,8 @@
 const { user, loginWithGoogle } = useAuth()
 const { resumen, loading: cargandoDashboard, error: errorDashboard, cargarDashboard } = useDashboard()
 
+const errorFotoHero = ref(false)
+
 const features = [
   {
     title: 'Selección Favorita',
@@ -75,9 +77,11 @@ watch(user, (u) => {
           <div class="hero__welcome-card glass">
             <div class="hero__welcome-avatar">
               <img
-                v-if="user.photoURL"
+                v-if="user.photoURL && !errorFotoHero"
                 :src="user.photoURL"
                 :alt="user.displayName ?? ''"
+                referrerpolicy="no-referrer"
+                @error="errorFotoHero = true"
               />
               <span v-else class="hero__welcome-avatar-fallback">
                 {{ (user.displayName ?? '?').charAt(0).toUpperCase() }}
@@ -333,6 +337,7 @@ watch(user, (u) => {
   border-radius: 50%;
   border: 2px solid var(--gold-start);
   box-shadow: 0 0 12px rgba(255, 214, 10, 0.25);
+  object-fit: cover;
 }
 
 .hero__welcome-avatar-fallback {
@@ -346,6 +351,7 @@ watch(user, (u) => {
   color: #0a0e1a;
   font-weight: 700;
   font-size: 1.2rem;
+  overflow: hidden;
 }
 
 .hero__welcome-greeting {
