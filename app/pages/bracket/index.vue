@@ -54,10 +54,11 @@ const construirMitad = (lado: Lado) => {
   const rondasSinFinal = RONDAS.filter((r) => r !== 'Final')
   return rondasSinFinal.map((ronda) => {
     const partidos = columnas.value.find((c) => c.ronda === ronda)?.partidos ?? []
-    const mitad = partidos.length / 2
-    const filtrados = partidos.filter((p) =>
-      lado === 'izquierda' ? (p.bracketPosition ?? 0) < mitad : (p.bracketPosition ?? 0) >= mitad,
-    )
+    const mitad = Math.max(1, Math.floor(partidos.length / 2))
+    const filtrados = partidos.filter((p, idx) => {
+      const pos = typeof p.bracketPosition === 'number' && !isNaN(p.bracketPosition) ? p.bracketPosition : idx
+      return lado === 'izquierda' ? pos < mitad : pos >= mitad
+    })
     return { ronda, partidos: filtrados }
   })
 }
@@ -210,15 +211,18 @@ const gruposDerecha = computed(() => gruposConEquipos.value.slice(6, 12))
         </div>
       </div>
 
-      <!-- Centro: Campeón + Final + Tercer lugar -->
+      <!-- Centro: Campeón + Trofeo + Final + Tercer lugar + Logo FIFA 2026 -->
       <div class="bracket-center">
-        <span class="bracket-center__label">World Champions</span>
-        <div class="bracket-trophy">
-          <span class="bracket-trophy__icon">🏆</span>
-          <span class="bracket-trophy__team">{{ campeon ?? '¿Quién será?' }}</span>
+        <h2 class="world-champions-heading">WORLD CHAMPIONS</h2>
+
+        <div class="bracket-trophy-box">
+          <img src="/fifa_world_cup_trophy.png" alt="FIFA World Cup Trophy" class="trophy-img" />
+          <div class="champion-name" v-if="campeon">
+            🏆 {{ campeon }}
+          </div>
         </div>
 
-        <div v-if="finalMatch" class="bracket-round">
+        <div v-if="finalMatch" class="bracket-round center-match-round">
           <span class="bracket-round__label">Final</span>
           <NuxtLink :to="`/matches/${finalMatch.id}`" class="bracket-match bracket-match--final glass-strong">
             <div class="bracket-match__row">
@@ -236,8 +240,8 @@ const gruposDerecha = computed(() => gruposConEquipos.value.slice(6, 12))
           </NuxtLink>
         </div>
 
-        <div v-if="tercerLugarMatch" class="bracket-round bracket-round--bronze">
-          <span class="bracket-round__label">🥉 Bronze Winner</span>
+        <div v-if="tercerLugarMatch" class="bracket-round bracket-round--bronze center-match-round">
+          <span class="bracket-round__label">BRONZE WINNER</span>
           <NuxtLink :to="`/matches/${tercerLugarMatch.id}`" class="bracket-match glass">
             <div class="bracket-match__row">
               <img v-if="banderaEquipo(tercerLugarMatch.homeTeam)" :src="banderaEquipo(tercerLugarMatch.homeTeam)!" class="bracket-match__flag" alt="" />
@@ -252,6 +256,11 @@ const gruposDerecha = computed(() => gruposConEquipos.value.slice(6, 12))
               <span class="bracket-match__score">{{ tercerLugarMatch.awayScore ?? '-' }}</span>
             </div>
           </NuxtLink>
+        </div>
+
+        <div class="fifa-2026-badge">
+          <span class="fifa-2026-number">26</span>
+          <span class="fifa-2026-text">FIFA WORLD CUP 2026</span>
         </div>
       </div>
 
@@ -413,16 +422,18 @@ const gruposDerecha = computed(() => gruposConEquipos.value.slice(6, 12))
 .bracket-tree {
   display: flex;
   align-items: center;
-  justify-content: center;
-  gap: var(--space-xl);
+  justify-content: space-between;
+  gap: 10px;
   overflow-x: auto;
-  padding: var(--space-md) 0 var(--space-xl);
+  padding: 20px 10px;
+  background: transparent;
+  width: 100%;
 }
 
 .bracket-half {
   display: flex;
   align-items: center;
-  gap: var(--space-lg);
+  gap: 12px;
   flex: 0 0 auto;
 }
 
@@ -431,82 +442,77 @@ const gruposDerecha = computed(() => gruposConEquipos.value.slice(6, 12))
   flex-direction: column;
   align-items: stretch;
   justify-content: space-around;
-  gap: var(--space-lg);
-  min-width: 190px;
+  gap: 10px;
+  width: 145px;
   flex: 0 0 auto;
 }
 
 .bracket-round__label {
-  font-size: 0.72rem;
-  font-weight: 700;
+  font-size: 0.7rem;
+  font-weight: 800;
   color: var(--text-gold);
   text-transform: uppercase;
-  letter-spacing: 0.06em;
+  letter-spacing: 0.08em;
+  text-align: center;
+  margin-bottom: 2px;
 }
 
 .bracket-round__matches {
   display: flex;
   flex-direction: column;
   justify-content: space-around;
-  gap: var(--space-lg);
+  gap: 10px;
   flex: 1;
 }
 
-.trophy {
-  position: absolute;
-  font-size: 3.4rem;
-  opacity: 0.15;
-  filter: drop-shadow(0 0 12px rgba(255, 214, 10, 0.4));
-  pointer-events: none;
-  user-select: none;
-}
-
-.bracket-line {
-  position: absolute;
-  background: rgba(255, 214, 10, 0.35);
-}
-
-.bracket-box {
-  position: absolute;
+.bracket-match {
   display: flex;
   flex-direction: column;
-  gap: 6px;
-  padding: var(--space-sm) var(--space-md);
-  border-radius: var(--radius-md);
-  transition: transform var(--transition-base), box-shadow var(--transition-base);
+  gap: 4px;
+  padding: 6px 10px;
+  border-radius: 8px;
+  background: rgba(18, 24, 38, 0.9);
+  border: 1px solid rgba(255, 255, 255, 0.12);
+  transition: all var(--transition-fast);
+  text-decoration: none;
+  color: #ffffff;
 }
 
 .bracket-match:hover {
-  transform: translateY(-2px) scale(1.02);
-  box-shadow: var(--shadow-md);
+  transform: translateY(-2px) scale(1.03);
+  border-color: rgba(255, 214, 10, 0.6);
+  box-shadow: 0 4px 20px rgba(255, 214, 10, 0.2);
 }
 
 .bracket-match--final {
-  padding: var(--space-md) var(--space-lg);
-  border: 1px solid rgba(255, 214, 10, 0.3);
+  padding: 10px 14px;
+  border: 2px solid #ffd60a;
+  box-shadow: 0 0 25px rgba(255, 214, 10, 0.3);
+  background: linear-gradient(135deg, rgba(35, 28, 10, 0.95), rgba(13, 18, 29, 0.95));
 }
 
 .bracket-match__row {
   display: flex;
   align-items: center;
-  gap: var(--space-sm);
-  font-size: 0.8rem;
-  font-weight: 600;
+  gap: 6px;
+  font-size: 0.78rem;
+  font-weight: 700;
 }
 
 .bracket-match__flag {
-  width: 20px;
-  height: 20px;
+  width: 18px;
+  height: 18px;
   border-radius: 50%;
   object-fit: cover;
   flex-shrink: 0;
+  border: 1px solid rgba(255, 255, 255, 0.2);
 }
 
 .bracket-match__flag--empty {
   display: flex;
   align-items: center;
   justify-content: center;
-  font-size: 0.8rem;
+  font-size: 0.75rem;
 }
 
 .bracket-match__team {
@@ -514,20 +520,22 @@ const gruposDerecha = computed(() => gruposConEquipos.value.slice(6, 12))
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
+  color: #ffffff;
 }
 
 .bracket-match__score {
-  color: var(--text-gold);
-  font-weight: 800;
+  color: #ffd60a;
+  font-weight: 900;
+  font-size: 0.85rem;
   flex-shrink: 0;
 }
 
-/* Columnas de grupos (decorativas), a los costados del bracket */
+/* Columnas de grupos (decorativas) a los costados */
 .groups-col {
   display: flex;
   flex-direction: column;
   justify-content: space-around;
-  gap: var(--space-md);
+  gap: 8px;
   flex: 0 0 auto;
 }
 
@@ -535,12 +543,13 @@ const gruposDerecha = computed(() => gruposConEquipos.value.slice(6, 12))
   display: flex;
   flex-direction: column;
   align-items: center;
-  gap: 6px;
-  padding: var(--space-sm);
-  min-width: 96px;
-  border-radius: var(--radius-md);
-  border: 2px solid var(--group-color, var(--border-glass));
-  background: color-mix(in srgb, var(--group-color, #000) 12%, var(--bg-surface));
+  gap: 4px;
+  padding: 6px;
+  min-width: 85px;
+  border-radius: 10px;
+  border: 2px solid var(--group-color, #333);
+  background: rgba(8, 12, 20, 0.85);
+  box-shadow: 0 0 10px color-mix(in srgb, var(--group-color, #000) 40%, transparent);
 }
 
 .group-box__flags {
@@ -550,58 +559,107 @@ const gruposDerecha = computed(() => gruposConEquipos.value.slice(6, 12))
 }
 
 .group-box__flag {
-  width: 22px;
-  height: 22px;
+  width: 20px;
+  height: 20px;
   border-radius: 50%;
   object-fit: cover;
-  border: 1px solid rgba(255, 255, 255, 0.15);
+  border: 1px solid rgba(255, 255, 255, 0.3);
 }
 
 .group-box__label {
-  font-size: 0.7rem;
+  font-size: 0.68rem;
   font-weight: 800;
-  color: var(--group-color, var(--text-gold));
+  color: #ffffff;
+  background: var(--group-color, #333);
+  padding: 2px 8px;
+  border-radius: 8px;
   text-transform: uppercase;
   letter-spacing: 0.04em;
+  margin-top: 1px;
 }
 
-/* Centro: trofeo + final + tercer lugar */
+/* Centro: trofeo + marcas oficiales */
 .bracket-center {
   display: flex;
   flex-direction: column;
   align-items: center;
-  gap: var(--space-lg);
+  gap: var(--space-md);
   flex: 0 0 auto;
-  padding: 0 var(--space-md);
+  padding: 0 6px;
+  width: 240px;
 }
 
-.bracket-center__label {
-  font-size: 0.75rem;
-  font-weight: 700;
-  color: var(--text-muted);
+.world-champions-heading {
+  font-size: 1.15rem;
+  font-weight: 900;
+  color: #ffffff;
+  letter-spacing: 0.14em;
   text-transform: uppercase;
-  letter-spacing: 0.08em;
+  text-align: center;
+  white-space: nowrap;
+  width: 100%;
+  margin: 0 auto 4px;
+  text-shadow: 0 0 15px rgba(255, 255, 255, 0.6);
 }
 
-.bracket-trophy {
+.bracket-trophy-box {
   display: flex;
   flex-direction: column;
   align-items: center;
-  gap: 4px;
+  gap: 6px;
+  position: relative;
 }
 
-.bracket-trophy__icon {
-  font-size: 2.4rem;
-  animation: float 3s ease-in-out infinite;
+.trophy-img {
+  width: 150px;
+  height: auto;
+  object-fit: contain;
+  mix-blend-mode: lighten;
+  mask-image: radial-gradient(circle at center, black 55%, transparent 90%);
+  -webkit-mask-image: radial-gradient(circle at center, black 55%, transparent 90%);
+  animation: float 4s ease-in-out infinite;
 }
 
-.bracket-trophy__team {
-  font-size: 1rem;
-  font-weight: 800;
+.champion-name {
+  font-size: 1.15rem;
+  font-weight: 900;
   color: var(--text-gold);
+  background: rgba(18, 24, 38, 0.95);
+  border: 1px solid var(--border-gold);
+  padding: 6px 18px;
+  border-radius: 20px;
+  box-shadow: 0 0 20px rgba(255, 214, 10, 0.3);
+}
+
+.center-match-round {
+  width: 100%;
+  max-width: 240px;
+}
+
+.fifa-2026-badge {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  margin-top: var(--space-md);
+  opacity: 0.9;
+}
+
+.fifa-2026-number {
+  font-size: 2rem;
+  font-weight: 900;
+  line-height: 1;
+  color: #ffffff;
+  letter-spacing: -0.05em;
+}
+
+.fifa-2026-text {
+  font-size: 0.65rem;
+  font-weight: 800;
+  color: var(--text-muted);
+  letter-spacing: 0.15em;
 }
 
 .bracket-round--bronze {
-  opacity: 0.85;
+  opacity: 0.9;
 }
 </style>

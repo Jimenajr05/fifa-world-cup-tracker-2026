@@ -27,9 +27,8 @@ export interface PerfilUsuario {
 export const useAuth = () => {
   const { $firebaseAuth } = useNuxtApp()
   const { db: $firestore } = useFirestore()
-  const user = useState<User | null>('user', () => null)
-  const perfil = useState<PerfilUsuario | null>('perfil', () => null)
-  const cargandoPerfil = useState<boolean>('cargandoPerfil', () => false)
+  const store = useAuthStore()
+  const { user, perfil, cargandoPerfil, errorCampeon } = storeToRefs(store)
 
   const guardarUsuarioEnFirestore = async (usuario: User) => {
     const userRef = doc($firestore, 'users', usuario.uid)
@@ -99,7 +98,6 @@ export const useAuth = () => {
 
   // Fija la predicción de campeón del torneo. Solo se puede elegir una vez:
   // si el usuario ya tiene un campeonElegido, la función no hace nada.
-  const errorCampeon = ref('')
   const elegirCampeon = async (equipo: string) => {
     errorCampeon.value = ''
     if (!user.value) return

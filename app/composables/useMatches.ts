@@ -162,9 +162,13 @@ export const useMatches = () => {
     await Promise.all(snap.docs.map((d) => deleteDoc(d.ref)))
   }
 
-  const createMatch = async (data: NewMatch) => {
+  const createMatch = async (data: NewMatch, opciones?: { permitirFechaPasada?: boolean }) => {
     validarDatosPartido(data)
-    if (data.status === 'Programado' && data.kickoff.toDate().getTime() <= Date.now()) {
+    if (
+      data.status === 'Programado'
+      && !opciones?.permitirFechaPasada
+      && data.kickoff.toDate().getTime() <= Date.now()
+    ) {
       throw new ValidationError('Un partido "Programado" debe tener una fecha y hora futura.')
     }
     if (await partidoDuplicado(data)) {

@@ -2,9 +2,10 @@
 import { Timestamp } from 'firebase/firestore'
 import type { NewMatch } from '~/composables/useMatches'
 import { FASES, GRUPOS, ESTADOS_PARTIDO, nombresEstadios, buscarEstadioPorNombre } from '~/utils/worldCupData'
+import { FIXTURE_FASE_GRUPOS } from '~/utils/worldCupFixture'
 import { mensajeError } from '~/utils/validation'
 
-const { matches, loading, error, fetchMatches, createMatch, deleteMatch } = useMatches()
+const { matches, loading, error, fetchMatches, createMatch, updateMatch, deleteMatch } = useMatches()
 const { teams: equiposRegistrados, fetchTeams } = useTeams()
 const { user } = useAuth()
 const { confirmar } = useConfirm()
@@ -18,6 +19,7 @@ const busqueda = ref('')
 const faseFiltro = ref('')
 const estadoFiltro = ref('')
 const fechaFiltro = ref('')
+const ciudadFiltro = ref('')
 const mostrarFormulario = ref(false)
 const creando = ref(false)
 const errorFormulario = ref('')
@@ -46,6 +48,11 @@ onMounted(() => {
   fetchTeams()
 })
 
+const ciudades = computed(() => {
+  const set = new Set(matches.value.map((m) => m.city).filter(Boolean))
+  return Array.from(set).sort()
+})
+
 const partidosFiltrados = computed(() => {
   const texto = busqueda.value.trim().toLowerCase()
   return matches.value.filter((m) => {
@@ -58,8 +65,30 @@ const partidosFiltrados = computed(() => {
     const coincideFase = !faseFiltro.value || m.stage === faseFiltro.value
     const coincideEstado = !estadoFiltro.value || m.status === estadoFiltro.value
     const coincideFecha = !fechaFiltro.value || m.kickoff.toDate().toISOString().slice(0, 10) === fechaFiltro.value
-    return coincideTexto && coincideFase && coincideEstado && coincideFecha
+    const coincideCiudad = !ciudadFiltro.value || m.city === ciudadFiltro.value
+    return coincideTexto && coincideFase && coincideEstado && coincideFecha && coincideCiudad
   })
+})
+
+// Paginación del listado de partidos
+const PARTIDOS_POR_PAGINA = 12
+const paginaActual = ref(1)
+
+watch([busqueda, faseFiltro, estadoFiltro, fechaFiltro, ciudadFiltro], () => {
+  paginaActual.value = 1
+})
+
+const totalPaginas = computed(() =>
+  Math.max(1, Math.ceil(partidosFiltrados.value.length / PARTIDOS_POR_PAGINA)),
+)
+
+watch(totalPaginas, (total) => {
+  if (paginaActual.value > total) paginaActual.value = total
+})
+
+const partidosPaginados = computed(() => {
+  const inicio = (paginaActual.value - 1) * PARTIDOS_POR_PAGINA
+  return partidosFiltrados.value.slice(inicio, inicio + PARTIDOS_POR_PAGINA)
 })
 
 const resetFormulario = () => {
@@ -117,6 +146,74 @@ const agregarPartido = async () => {
   }
 }
 
+// Carga masiva: crea de un solo click los 72 partidos oficiales de la fase
+// de grupos (12 grupos x 6 partidos). Omite los que ya existen (mismo
+// enfrentamiento y grupo) para evitar duplicados si se vuelve a ejecutar.
+const cargandoFixture = ref(false)
+const resultadoFixture = ref('')
+
+const cargarFixtureOficial = async () => {
+  if (matches.value.length > 0) {
+    const confirmado = await confirmar('Ya hay partidos cargados. ¿Cargar de todas formas el fixture oficial? Se actualizarán los resultados y estados de los enfrentamientos existentes.')
+    if (!confirmado) return
+  }
+  cargandoFixture.value = true
+  resultadoFixture.value = ''
+  let creados = 0
+  let actualizados = 0
+  let fallidos = 0
+  try {
+    for (const partido of FIXTURE_FASE_GRUPOS) {
+      const matchExistente = matches.value.find(
+        (m) => m.homeTeam === partido.homeTeam && m.awayTeam === partido.awayTeam && m.stage === partido.stage,
+      )
+      if (matchExistente) {
+        try {
+          await updateMatch(matchExistente.id, {
+            homeScore: partido.homeScore !== undefined ? partido.homeScore : null,
+            awayScore: partido.awayScore !== undefined ? partido.awayScore : null,
+            status: partido.status || 'Programado',
+            bracketPosition: partido.bracketPosition !== undefined ? partido.bracketPosition : null,
+          })
+          actualizados++
+        } catch (err) {
+          console.error(`No se pudo actualizar ${partido.homeTeam} vs ${partido.awayTeam}:`, err)
+          fallidos++
+        }
+        continue
+      }
+      try {
+        await createMatch(
+          {
+            homeTeam: partido.homeTeam,
+            awayTeam: partido.awayTeam,
+            homeTeamId: idDeEquipo(partido.homeTeam),
+            awayTeamId: idDeEquipo(partido.awayTeam),
+            stage: partido.stage,
+            group: partido.group,
+            stadium: partido.stadium,
+            city: partido.city,
+            kickoff: Timestamp.fromDate(new Date(partido.kickoff)),
+            homeScore: partido.homeScore !== undefined ? partido.homeScore : null,
+            awayScore: partido.awayScore !== undefined ? partido.awayScore : null,
+            status: partido.status || 'Programado',
+            bracketPosition: partido.bracketPosition !== undefined ? partido.bracketPosition : null,
+          },
+          { permitirFechaPasada: true },
+        )
+        creados++
+      } catch (err) {
+        console.error(`No se pudo crear ${partido.homeTeam} vs ${partido.awayTeam}:`, err)
+        fallidos++
+      }
+    }
+    await cargar()
+    resultadoFixture.value = `Listo: ${creados} partidos creados, ${actualizados} actualizados${fallidos ? `, ${fallidos} fallaron` : ''}.`
+  } finally {
+    cargandoFixture.value = false
+  }
+}
+
 const errorEliminar = ref('')
 
 const eliminarPartido = async (id: string) => {
@@ -145,10 +242,16 @@ const formatearFecha = (ts: { toDate: () => Date }) =>
         </h1>
         <p class="matches-subtitle">Calendario, resultados y estado de los encuentros</p>
       </div>
-      <button v-if="user" class="btn-add" @click="mostrarFormulario = !mostrarFormulario">
-        {{ mostrarFormulario ? 'Cancelar' : '+ Agregar partido' }}
-      </button>
+      <div v-if="user" class="matches-header__actions">
+        <button class="btn-refetch" :disabled="cargandoFixture" @click="cargarFixtureOficial">
+          {{ cargandoFixture ? 'Cargando...' : '⚡ Cargar fixture oficial (fase de grupos)' }}
+        </button>
+        <button class="btn-add" @click="mostrarFormulario = !mostrarFormulario">
+          {{ mostrarFormulario ? 'Cancelar' : '+ Agregar partido' }}
+        </button>
+      </div>
     </header>
+    <p v-if="resultadoFixture" class="state-text">{{ resultadoFixture }}</p>
 
     <!-- Formulario de creación -->
     <Transition name="fade">
@@ -231,10 +334,18 @@ const formatearFecha = (ts: { toDate: () => Date }) =>
         <option v-for="e in ESTADOS_PARTIDO" :key="e" :value="e">{{ e }}</option>
       </select>
       <input v-model="fechaFiltro" type="date" class="field__input" />
+      <select v-model="ciudadFiltro" class="field__input">
+        <option value="">Todas las ciudades</option>
+        <option v-for="c in ciudades" :key="c" :value="c">{{ c }}</option>
+      </select>
       <button class="btn-refetch" @click="cargar" :disabled="loading">
         Actualizar
       </button>
     </div>
+
+    <p v-if="!loading && !error" class="results-count">
+      {{ partidosFiltrados.length }} partido{{ partidosFiltrados.length === 1 ? '' : 's' }} en total
+    </p>
 
     <!-- Estado: cargando -->
     <div v-if="loading" class="state-box">
@@ -256,26 +367,30 @@ const formatearFecha = (ts: { toDate: () => Date }) =>
     <p v-if="errorEliminar" class="form-error">{{ errorEliminar }}</p>
 
     <!-- Listado -->
-    <div v-else class="matches-list">
-      <div v-for="match in partidosFiltrados" :key="match.id" class="match-card glass animate-slide-up">
-        <NuxtLink :to="`/matches/${match.id}`" class="match-card__link">
-          <div class="match-card__teams">
-            <span class="match-card__team">{{ match.homeTeam }}</span>
-            <span class="match-card__score">
-              {{ match.homeScore ?? '-' }} : {{ match.awayScore ?? '-' }}
-            </span>
-            <span class="match-card__team">{{ match.awayTeam }}</span>
-          </div>
-          <div class="match-card__meta">
-            <span class="badge" :class="`badge--${match.status.replace(' ', '').toLowerCase()}`">{{ match.status }}</span>
-            <span>{{ match.stage }}<template v-if="match.group"> · Grupo {{ match.group }}</template></span>
-            <span>{{ match.stadium }}, {{ match.city }}</span>
-            <span>{{ formatearFecha(match.kickoff) }}</span>
-          </div>
-        </NuxtLink>
-        <button v-if="user" class="match-card__delete" title="Eliminar" @click="eliminarPartido(match.id)">✕</button>
+    <template v-else>
+      <div class="matches-list">
+        <div v-for="match in partidosPaginados" :key="match.id" class="match-card glass animate-slide-up">
+          <NuxtLink :to="`/matches/${match.id}`" class="match-card__link">
+            <div class="match-card__teams">
+              <span class="match-card__team">{{ match.homeTeam }}</span>
+              <span class="match-card__score">
+                {{ match.homeScore ?? '-' }} : {{ match.awayScore ?? '-' }}
+              </span>
+              <span class="match-card__team">{{ match.awayTeam }}</span>
+            </div>
+            <div class="match-card__meta">
+              <span class="badge" :class="`badge--${match.status.replace(' ', '').toLowerCase()}`">{{ match.status }}</span>
+              <span>{{ match.stage }}<template v-if="match.group"> · Grupo {{ match.group }}</template></span>
+              <span>{{ match.stadium }}, {{ match.city }}</span>
+              <span>{{ formatearFecha(match.kickoff) }}</span>
+            </div>
+          </NuxtLink>
+          <button v-if="user" class="match-card__delete" title="Eliminar" @click="eliminarPartido(match.id)">✕</button>
+        </div>
       </div>
-    </div>
+
+      <Pagination v-model:pagina-actual="paginaActual" :total-paginas="totalPaginas" />
+    </template>
   </div>
 </template>
 
@@ -304,6 +419,13 @@ const formatearFecha = (ts: { toDate: () => Date }) =>
   color: var(--text-secondary);
   font-size: 0.92rem;
   margin-top: 4px;
+}
+
+.matches-header__actions {
+  display: flex;
+  align-items: center;
+  gap: var(--space-md);
+  flex-wrap: wrap;
 }
 
 .btn-add {
@@ -412,6 +534,11 @@ select.field__input {
   display: flex;
   gap: var(--space-md);
   flex-wrap: wrap;
+}
+
+.results-count {
+  color: var(--text-muted);
+  font-size: 0.85rem;
 }
 
 .filters__search {

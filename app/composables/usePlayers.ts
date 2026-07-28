@@ -82,7 +82,7 @@ export const usePlayers = () => {
   }
 
   // ── Reglas de negocio ──────────────────────────────────────────
-  const NOMBRE_REGEX = /^[a-zA-ZÀ-ÿñÑ'’\-. ]+$/
+  const NOMBRE_REGEX = /^[\p{L}\p{M}'’\-. ]+$/u
 
   const validarDatosJugador = (data: NewPlayer) => {
     requerido(data.name, 'El nombre')

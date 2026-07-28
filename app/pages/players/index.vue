@@ -8,6 +8,7 @@ const { user } = useAuth()
 
 const busqueda = ref('')
 const posicionFiltro = ref('')
+const equipoFiltro = ref('')
 
 const cargar = () => {
   fetchAllPlayers()
@@ -28,7 +29,8 @@ const jugadoresFiltrados = computed(() => {
       p.club.toLowerCase().includes(texto) ||
       (equipo?.name.toLowerCase().includes(texto) ?? false)
     const coincidePosicion = !posicionFiltro.value || p.position === posicionFiltro.value
-    return coincideTexto && coincidePosicion
+    const coincideEquipo = !equipoFiltro.value || p.teamId === equipoFiltro.value
+    return coincideTexto && coincidePosicion && coincideEquipo
   })
 })
 
@@ -36,7 +38,7 @@ const jugadoresFiltrados = computed(() => {
 const JUGADORES_POR_PAGINA = 16
 const paginaActual = ref(1)
 
-watch([busqueda, posicionFiltro], () => {
+watch([busqueda, posicionFiltro, equipoFiltro], () => {
   paginaActual.value = 1
 })
 
@@ -133,6 +135,10 @@ const cargarConvocadosOficiales = async () => {
       <select v-model="posicionFiltro" class="field__input">
         <option value="">Todas las posiciones</option>
         <option v-for="p in POSICIONES_JUGADOR" :key="p" :value="p">{{ p }}</option>
+      </select>
+      <select v-model="equipoFiltro" class="field__input">
+        <option value="">Todas las selecciones</option>
+        <option v-for="t in teams" :key="t.id" :value="t.id">{{ t.name }}</option>
       </select>
       <button class="btn-refetch" @click="cargar" :disabled="loading">
         Actualizar
