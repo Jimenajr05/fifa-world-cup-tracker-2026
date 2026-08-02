@@ -1,7 +1,6 @@
 import { initializeApp } from 'firebase/app'
 import { getAuth, setPersistence, browserLocalPersistence } from 'firebase/auth'
 import { getFirestore } from 'firebase/firestore'
-import { getStorage } from 'firebase/storage'
 
 export default defineNuxtPlugin((nuxtApp) => {
   const config = useRuntimeConfig()
@@ -18,7 +17,6 @@ export default defineNuxtPlugin((nuxtApp) => {
   const app = initializeApp(firebaseConfig)
   const auth = getAuth(app)
   const db = getFirestore(app)
-  const storage = getStorage(app)
 
   // Mantiene la sesión iniciada aunque el usuario cierre y vuelva a abrir el navegador
   if (import.meta.client) {
@@ -29,7 +27,6 @@ export default defineNuxtPlugin((nuxtApp) => {
     provide: {
       firebaseAuth: auth,
       firestore: db,
-      firebaseStorage: storage,
     }
   }
 })

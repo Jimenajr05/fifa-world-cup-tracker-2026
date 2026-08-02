@@ -7,18 +7,6 @@ const router = useRouter()
 const { fetchTeamById, updateTeam, deleteTeam } = useTeams()
 const { user, perfil, alternarEquipoFavorito } = useAuth()
 const { confirmar } = useConfirm()
-const { subiendo, errorSubida, subirArchivo } = useFirebaseStorage()
-
-const subirBanderaPersonalizada = async (evento: Event) => {
-  const archivo = (evento.target as HTMLInputElement).files?.[0]
-  if (!archivo) return
-  try {
-    const ruta = `flags/${Date.now()}-${archivo.name}`
-    formulario.flag = await subirArchivo(ruta, archivo)
-  } catch {
-    // errorSubida ya queda seteado dentro de useFirebaseStorage
-  }
-}
 
 const esFavorito = computed(() => !!team.value && (perfil.value?.equiposFavoritos.includes(team.value.id) ?? false))
 
@@ -185,11 +173,6 @@ const eliminar = async () => {
         <div class="field">
           <label class="field__label">Bandera</label>
           <input v-model="formulario.flag" type="text" class="field__input" placeholder="Se completa automáticamente" readonly />
-          <label class="upload-btn">
-            {{ subiendo ? 'Subiendo...' : '📷 Subir imagen propia' }}
-            <input type="file" accept="image/*" hidden :disabled="subiendo" @change="subirBanderaPersonalizada" />
-          </label>
-          <p v-if="errorSubida" class="form-error">{{ errorSubida }}</p>
         </div>
         <div class="field">
           <label class="field__label">Entrenador</label>
@@ -454,27 +437,6 @@ select.field__input {
 .form-error {
   color: #ff6b6b;
   font-size: 0.85rem;
-}
-
-.upload-btn {
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  margin-top: 6px;
-  padding: 8px 14px;
-  border-radius: var(--radius-sm);
-  background: var(--bg-surface);
-  border: 1px solid var(--border-subtle);
-  color: var(--text-secondary);
-  font-size: 0.78rem;
-  font-weight: 600;
-  cursor: pointer;
-  transition: all var(--transition-fast);
-}
-
-.upload-btn:hover {
-  color: var(--text-primary);
-  border-color: var(--border-glass);
 }
 
 .btn-cancel {

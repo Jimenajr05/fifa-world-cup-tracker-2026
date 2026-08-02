@@ -203,6 +203,7 @@ const formatearFecha = (ts: { toDate: () => Date }) =>
           </div>
         </div>
         <p v-if="errorFormulario" class="form-error">{{ errorFormulario }}</p>
+
         <button type="submit" class="save-btn" :disabled="creando">
           {{ creando ? 'Guardando...' : 'Guardar partido' }}
         </button>

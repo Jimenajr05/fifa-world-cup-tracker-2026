@@ -3,6 +3,9 @@ import { POSICIONES_JUGADOR } from '~/utils/worldCupData'
 
 const { players, loading, error, fetchAllPlayers } = usePlayers()
 const { teams, fetchTeams } = useTeams()
+const { obtenerGolesPorJugador } = useStatistics()
+
+const golesPorJugador = ref<Map<string, number>>(new Map())
 
 const busqueda = ref('')
 const posicionFiltro = ref('')
@@ -10,6 +13,7 @@ const posicionFiltro = ref('')
 const cargar = () => {
   fetchAllPlayers()
   fetchTeams()
+  obtenerGolesPorJugador().then((mapa) => { golesPorJugador.value = mapa })
 }
 
 onMounted(cargar)
@@ -86,7 +90,10 @@ const jugadoresFiltrados = computed(() => {
         <span class="player-card__number">{{ player.number }}</span>
         <div class="player-card__info">
           <p class="player-card__name">{{ player.name }}</p>
-          <p class="player-card__meta">{{ player.position }} · {{ player.club || 'Sin club' }}</p>
+          <p class="player-card__meta">
+            {{ player.position }} · {{ player.club || 'Sin club' }} ·
+            <span class="player-card__goals">⚽ {{ golesPorJugador.get(player.id) ?? 0 }}</span>
+          </p>
           <p v-if="equipoPorId.get(player.teamId)" class="player-card__team">
             <img
               v-if="equipoPorId.get(player.teamId)?.flag"
@@ -253,6 +260,11 @@ select.field__input {
   font-size: 0.78rem;
   color: var(--text-muted);
   margin-top: 2px;
+}
+
+.player-card__goals {
+  color: var(--text-gold);
+  font-weight: 600;
 }
 
 .player-card__team {

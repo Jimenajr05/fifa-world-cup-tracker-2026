@@ -96,6 +96,18 @@ export const useMatches = () => {
     await deleteDoc(doc($firestore, 'matches', id))
   }
 
+  // Revisa si el equipo (por id) tiene AHORA MISMO un partido en estado "En Vivo",
+  // ya sea como local o como visitante. Se usa para bloquear la eliminación de
+  // jugadores de una selección que está jugando en este momento.
+  const equipoTienePartidoEnVivo = async (teamId: string): Promise<boolean> => {
+    const q = query(collection($firestore, 'matches'), where('status', '==', 'En Vivo'))
+    const snap = await getDocs(q)
+    return snap.docs.some((d) => {
+      const partido = d.data() as NewMatch
+      return partido.homeTeamId === teamId || partido.awayTeamId === teamId
+    })
+  }
+
   return {
     matches,
     loading,
@@ -105,5 +117,6 @@ export const useMatches = () => {
     createMatch,
     updateMatch,
     deleteMatch,
+    equipoTienePartidoEnVivo,
   }
 }

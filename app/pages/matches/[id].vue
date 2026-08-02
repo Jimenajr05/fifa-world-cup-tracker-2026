@@ -1,13 +1,61 @@
 <script setup lang="ts">
 import { Timestamp } from 'firebase/firestore'
 import type { Match, MatchScorer } from '~/composables/useMatches'
-import { FASES, GRUPOS, ESTADOS_PARTIDO, nombresEstadios, buscarEstadioPorNombre } from '~/utils/worldCupData'
+import { FASES, GRUPOS, ESTADOS_PARTIDO, POSICIONES_JUGADOR, nombresEstadios, buscarEstadioPorNombre } from '~/utils/worldCupData'
 
 const route = useRoute()
 const router = useRouter()
 const { fetchMatchById, updateMatch, deleteMatch } = useMatches()
 const { teams: equiposRegistrados, fetchTeams } = useTeams()
-const { fetchPlayersByTeam } = usePlayers()
+const { fetchPlayersByTeam, players: jugadoresCargados } = usePlayers()
+
+// Alineaciones que se muestran en la vista de detalle (no en edición).
+// Se cargan bajo demanda, la primera vez que se abre cada botón "Alineación".
+const mostrarAlineacionLocal = ref(false)
+const mostrarAlineacionVisitante = ref(false)
+const alineacionLocal = ref<{ id: string; name: string; number: number; position: string }[]>([])
+const alineacionVisitante = ref<{ id: string; name: string; number: number; position: string }[]>([])
+const cargandoAlineacion = ref(false)
+
+const PLURAL_POSICION_ALINEACION: Record<string, string> = {
+  Portero: 'Porteros',
+  Defensa: 'Defensas',
+  Mediocampista: 'Mediocampistas',
+  Delantero: 'Delanteros',
+}
+
+const agruparAlineacion = (jugadores: { id: string; name: string; number: number; position: string }[]) => {
+  return Object.entries(PLURAL_POSICION_ALINEACION).map(([posicion, etiqueta]) => ({
+    posicion,
+    etiqueta,
+    jugadores: jugadores.filter((j) => j.position === posicion).sort((a, b) => a.number - b.number),
+  })).filter((grupo) => grupo.jugadores.length > 0)
+}
+
+const alineacionLocalAgrupada = computed(() => agruparAlineacion(alineacionLocal.value))
+const alineacionVisitanteAgrupada = computed(() => agruparAlineacion(alineacionVisitante.value))
+
+const alternarAlineacion = async (lado: 'local' | 'visitante') => {
+  if (!match.value) return
+
+  if (lado === 'local') {
+    mostrarAlineacionLocal.value = !mostrarAlineacionLocal.value
+    if (mostrarAlineacionLocal.value && alineacionLocal.value.length === 0 && match.value.homeTeamId) {
+      cargandoAlineacion.value = true
+      await fetchPlayersByTeam(match.value.homeTeamId)
+      alineacionLocal.value = jugadoresCargados.value
+      cargandoAlineacion.value = false
+    }
+  } else {
+    mostrarAlineacionVisitante.value = !mostrarAlineacionVisitante.value
+    if (mostrarAlineacionVisitante.value && alineacionVisitante.value.length === 0 && match.value.awayTeamId) {
+      cargandoAlineacion.value = true
+      await fetchPlayersByTeam(match.value.awayTeamId)
+      alineacionVisitante.value = jugadoresCargados.value
+      cargandoAlineacion.value = false
+    }
+  }
+}
 const { user, perfil, alternarPartidoFavorito } = useAuth()
 const { confirmar } = useConfirm()
 const { avanzarGanador } = useBracket()
@@ -18,8 +66,25 @@ const idDeEquipo = (nombre: string) => equiposRegistrados.value.find((t) => t.na
 
 // Goleadores: se cargan las plantillas de ambos equipos por separado para
 // poder ofrecer un select de jugadores propio de cada lado
-const jugadoresLocal = ref<{ id: string; name: string }[]>([])
-const jugadoresVisitante = ref<{ id: string; name: string }[]>([])
+const jugadoresLocal = ref<{ id: string; name: string; position: string }[]>([])
+const jugadoresVisitante = ref<{ id: string; name: string; position: string }[]>([])
+
+// Agrupa una lista de jugadores por posición, en el orden natural
+// (Portero, Defensa, Mediocampista, Delantero), para mostrarlos como
+// <optgroup> dentro del select de goleadores.
+const PLURAL_POSICION: Record<string, string> = {
+  Portero: 'Porteros',
+  Defensa: 'Defensas',
+  Mediocampista: 'Mediocampistas',
+  Delantero: 'Delanteros',
+}
+const agruparPorPosicion = (jugadores: { id: string; name: string; position: string }[]) => {
+  return POSICIONES_JUGADOR.map((posicion) => ({
+    posicion,
+    etiqueta: PLURAL_POSICION[posicion] ?? posicion,
+    jugadores: jugadores.filter((j) => j.position === posicion),
+  })).filter((grupo) => grupo.jugadores.length > 0)
+}
 const goleadores = ref<MatchScorer[]>([])
 
 const id = route.params.id as string
@@ -93,14 +158,13 @@ const errorEdicion = ref('')
 
 // Carga las plantillas de ambos equipos cuando se abre el formulario de edición,
 // para poblar los selects de goleadores
-const { players: jugadoresCargados } = usePlayers()
 watch(editando, async (abierto) => {
   if (!abierto || !match.value) return
 
   const idLocal = idDeEquipo(match.value.homeTeam)
   if (idLocal) {
     await fetchPlayersByTeam(idLocal)
-    jugadoresLocal.value = jugadoresCargados.value.map((p) => ({ id: p.id, name: p.name }))
+    jugadoresLocal.value = jugadoresCargados.value.map((p) => ({ id: p.id, name: p.name, position: p.position }))
   } else {
     jugadoresLocal.value = []
   }
@@ -108,7 +172,7 @@ watch(editando, async (abierto) => {
   const idVisitante = idDeEquipo(match.value.awayTeam)
   if (idVisitante) {
     await fetchPlayersByTeam(idVisitante)
-    jugadoresVisitante.value = jugadoresCargados.value.map((p) => ({ id: p.id, name: p.name }))
+    jugadoresVisitante.value = jugadoresCargados.value.map((p) => ({ id: p.id, name: p.name, position: p.position }))
   } else {
     jugadoresVisitante.value = []
   }
@@ -137,6 +201,9 @@ const quitarGoleador = (index: number) => {
 const goleadoresLocal = computed(() => goleadores.value.filter((g) => g.teamId === idDeEquipo(formulario.homeTeam)))
 const goleadoresVisitante = computed(() => goleadores.value.filter((g) => g.teamId === idDeEquipo(formulario.awayTeam)))
 const indiceGlobal = (g: MatchScorer) => goleadores.value.indexOf(g)
+
+const jugadoresLocalAgrupados = computed(() => agruparPorPosicion(jugadoresLocal.value))
+const jugadoresVisitanteAgrupados = computed(() => agruparPorPosicion(jugadoresVisitante.value))
 
 const guardarCambios = async () => {
   if (!match.value) return
@@ -234,9 +301,58 @@ const formatearFecha = (ts: Timestamp) =>
         </div>
 
         <div class="match-detail__scoreboard">
-          <span class="match-detail__team">{{ match.homeTeam }}</span>
+          <div class="match-detail__side">
+            <span class="match-detail__team">{{ match.homeTeam }}</span>
+            <button class="lineup-btn" @click="alternarAlineacion('local')">
+              <span class="lineup-btn__icon">👕</span>
+              {{ mostrarAlineacionLocal ? 'Ocultar' : 'Ver alineación' }}
+            </button>
+          </div>
+
           <span class="match-detail__score">{{ match.homeScore ?? '-' }} : {{ match.awayScore ?? '-' }}</span>
-          <span class="match-detail__team">{{ match.awayTeam }}</span>
+
+          <div class="match-detail__side">
+            <span class="match-detail__team">{{ match.awayTeam }}</span>
+            <button class="lineup-btn" @click="alternarAlineacion('visitante')">
+              <span class="lineup-btn__icon">👕</span>
+              {{ mostrarAlineacionVisitante ? 'Ocultar' : 'Ver alineación' }}
+            </button>
+          </div>
+        </div>
+
+        <!-- Paneles de alineación -->
+        <div v-if="mostrarAlineacionLocal || mostrarAlineacionVisitante" class="lineups">
+          <div v-if="mostrarAlineacionLocal" class="lineup-panel glass">
+            <p class="lineup-panel__title">{{ match.homeTeam }}</p>
+            <div v-if="cargandoAlineacion && alineacionLocal.length === 0" class="lineup-panel__loading">
+              <div class="spinner spinner--sm" />
+            </div>
+            <p v-else-if="!match.homeTeamId || alineacionLocal.length === 0" class="lineup-panel__empty">
+              Esta selección todavía no tiene jugadores registrados.
+            </p>
+            <div v-else v-for="grupo in alineacionLocalAgrupada" :key="grupo.posicion" class="lineup-group">
+              <p class="lineup-group__title">{{ grupo.etiqueta }}</p>
+              <p v-for="j in grupo.jugadores" :key="j.id" class="lineup-group__player">
+                <span class="lineup-group__number">{{ j.number }}</span> {{ j.name }}
+              </p>
+            </div>
+          </div>
+
+          <div v-if="mostrarAlineacionVisitante" class="lineup-panel glass">
+            <p class="lineup-panel__title">{{ match.awayTeam }}</p>
+            <div v-if="cargandoAlineacion && alineacionVisitante.length === 0" class="lineup-panel__loading">
+              <div class="spinner spinner--sm" />
+            </div>
+            <p v-else-if="!match.awayTeamId || alineacionVisitante.length === 0" class="lineup-panel__empty">
+              Esta selección todavía no tiene jugadores registrados.
+            </p>
+            <div v-else v-for="grupo in alineacionVisitanteAgrupada" :key="grupo.posicion" class="lineup-group">
+              <p class="lineup-group__title">{{ grupo.etiqueta }}</p>
+              <p v-for="j in grupo.jugadores" :key="j.id" class="lineup-group__player">
+                <span class="lineup-group__number">{{ j.number }}</span> {{ j.name }}
+              </p>
+            </div>
+          </div>
         </div>
 
         <div class="divider" />
@@ -341,7 +457,9 @@ const formatearFecha = (ts: Timestamp) =>
                 @change="actualizarGoleadorJugador(indiceGlobal(g), ($event.target as HTMLSelectElement).value, 'local')"
               >
                 <option value="" disabled>Selecciona jugador</option>
-                <option v-for="j in jugadoresLocal" :key="j.id" :value="j.id">{{ j.name }}</option>
+                <optgroup v-for="grupo in jugadoresLocalAgrupados" :key="grupo.posicion" :label="grupo.etiqueta">
+                  <option v-for="j in grupo.jugadores" :key="j.id" :value="j.id">{{ j.name }}</option>
+                </optgroup>
               </select>
               <input v-model.number="g.goals" type="number" min="1" class="field__input scorer-row__goals" />
               <button type="button" class="scorer-row__remove" @click="quitarGoleador(indiceGlobal(g))">✕</button>
@@ -358,7 +476,9 @@ const formatearFecha = (ts: Timestamp) =>
                 @change="actualizarGoleadorJugador(indiceGlobal(g), ($event.target as HTMLSelectElement).value, 'visitante')"
               >
                 <option value="" disabled>Selecciona jugador</option>
-                <option v-for="j in jugadoresVisitante" :key="j.id" :value="j.id">{{ j.name }}</option>
+                <optgroup v-for="grupo in jugadoresVisitanteAgrupados" :key="grupo.posicion" :label="grupo.etiqueta">
+                  <option v-for="j in grupo.jugadores" :key="j.id" :value="j.id">{{ j.name }}</option>
+                </optgroup>
               </select>
               <input v-model.number="g.goals" type="number" min="1" class="field__input scorer-row__goals" />
               <button type="button" class="scorer-row__remove" @click="quitarGoleador(indiceGlobal(g))">✕</button>
@@ -478,9 +598,48 @@ const formatearFecha = (ts: Timestamp) =>
   gap: var(--space-xl);
 }
 
+.match-detail__side {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 8px;
+}
+
 .match-detail__team {
   font-size: 1.25rem;
   font-weight: 700;
+  text-align: center;
+}
+
+.lineup-btn {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 8px 16px;
+  border-radius: 999px;
+  font-size: 0.8rem;
+  font-weight: 700;
+  white-space: nowrap;
+  color: var(--text-gold);
+  background: rgba(255, 214, 10, 0.1);
+  border: 1px solid rgba(255, 214, 10, 0.35);
+  animation: pulse-glow 2.5s ease-in-out infinite;
+  transition: all var(--transition-fast);
+}
+
+.lineup-btn:hover {
+  background: rgba(255, 214, 10, 0.2);
+  border-color: rgba(255, 214, 10, 0.6);
+  transform: translateY(-2px);
+}
+
+.lineup-btn__icon {
+  font-size: 1rem;
+}
+
+.lineup-btn:hover {
+  color: var(--text-gold);
+  border-color: rgba(255, 214, 10, 0.3);
 }
 
 .match-detail__score {
@@ -490,6 +649,67 @@ const formatearFecha = (ts: Timestamp) =>
   color: var(--text-gold);
   font-size: 1.4rem;
   font-weight: 800;
+  align-self: center;
+}
+
+.lineups {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+  gap: var(--space-md);
+  margin-top: var(--space-lg);
+}
+
+.lineup-panel {
+  padding: var(--space-lg);
+  border-radius: var(--radius-lg);
+}
+
+.lineup-panel__title {
+  font-size: 0.85rem;
+  font-weight: 700;
+  margin-bottom: var(--space-sm);
+}
+
+.lineup-panel__loading {
+  display: flex;
+  justify-content: center;
+  padding: var(--space-md) 0;
+}
+
+.spinner--sm {
+  width: 22px;
+  height: 22px;
+  border-width: 2px;
+}
+
+.lineup-panel__empty {
+  font-size: 0.78rem;
+  color: var(--text-muted);
+}
+
+.lineup-group {
+  margin-top: var(--space-sm);
+}
+
+.lineup-group__title {
+  font-size: 0.68rem;
+  font-weight: 700;
+  color: var(--text-gold);
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  margin-bottom: 4px;
+}
+
+.lineup-group__player {
+  font-size: 0.82rem;
+  padding: 3px 0;
+}
+
+.lineup-group__number {
+  display: inline-block;
+  width: 20px;
+  color: var(--text-muted);
+  font-weight: 700;
 }
 
 .divider {
