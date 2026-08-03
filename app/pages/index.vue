@@ -1,6 +1,16 @@
 <script setup lang="ts">
-const { user, loginWithGoogle } = useAuth()
+const { user, perfil, loginWithGoogle } = useAuth()
 const { resumen, loading: cargandoDashboard, error: errorDashboard, cargarDashboard } = useDashboard()
+
+const imgError = ref(false)
+const fotoUrl = computed(() => perfil.value?.foto || user.value?.photoURL || '')
+watch(fotoUrl, () => {
+  imgError.value = false
+})
+const iniciales = computed(() => {
+  const base = perfil.value?.nombre || user.value?.displayName || user.value?.email || ''
+  return base.trim().charAt(0).toUpperCase() || '?'
+})
 
 const features = [
   {
@@ -75,12 +85,14 @@ watch(user, (u) => {
           <div class="hero__welcome-card glass">
             <div class="hero__welcome-avatar">
               <img
-                v-if="user.photoURL"
-                :src="user.photoURL"
-                :alt="user.displayName ?? ''"
+                v-if="fotoUrl && !imgError"
+                :src="fotoUrl"
+                :alt="perfil?.nombre || user.displayName || ''"
+                referrerpolicy="no-referrer"
+                @error="imgError = true"
               />
               <span v-else class="hero__welcome-avatar-fallback">
-                {{ (user.displayName ?? '?').charAt(0).toUpperCase() }}
+                {{ iniciales }}
               </span>
             </div>
             <div>

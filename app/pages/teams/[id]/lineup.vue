@@ -1,7 +1,7 @@
 <script setup lang="ts">
 import type { Team } from '~/composables/useTeams'
-import type { NewPlayer, Player } from '~/composables/usePlayers'
-import { POSICIONES_JUGADOR, CLUBES_REFERENCIA, NOMBRES_JUGADORES_POR_SELECCION, OTRO_NOMBRE_JUGADOR as OTRO_NOMBRE } from '~/utils/worldCupData'
+import type { Player } from '~/composables/usePlayers'
+import { NOMBRES_JUGADORES_POR_SELECCION, OTRO_NOMBRE_JUGADOR as OTRO_NOMBRE } from '~/utils/worldCupData'
 import { mensajeError } from '~/utils/validation'
 
 const route = useRoute()
@@ -54,29 +54,9 @@ const edicionJugadorId = ref<string | null>(null)
 const guardandoEdicionJugador = ref(false)
 const errorEdicionJugador = ref('')
 
-const formularioEdicionJugador = reactive<Omit<NewPlayer, 'teamId'>>({
-  name: '',
-  number: 1,
-  position: POSICIONES_JUGADOR[0],
-  club: '',
-  titular: false,
-})
-
-const nombreSeleccionadoEdicion = ref('')
-const escribirNombrePropioEdicion = computed(() => nombreSeleccionadoEdicion.value === OTRO_NOMBRE)
-watch(nombreSeleccionadoEdicion, (valor) => {
-  if (valor) formularioEdicionJugador.name = valor === OTRO_NOMBRE ? '' : valor
-})
-
 const seleccionarJugador = (player: Player) => {
   if (!user.value) return
   edicionJugadorId.value = player.id
-  formularioEdicionJugador.name = player.name
-  formularioEdicionJugador.number = player.number
-  formularioEdicionJugador.position = player.position
-  formularioEdicionJugador.club = player.club
-  formularioEdicionJugador.titular = player.titular
-  nombreSeleccionadoEdicion.value = nombresDisponibles.value.includes(player.name) ? player.name : OTRO_NOMBRE
   errorEdicionJugador.value = ''
 }
 
@@ -85,27 +65,9 @@ const cancelarEdicionJugador = () => {
   errorEdicionJugador.value = ''
 }
 
-const guardarEdicionJugador = async () => {
-  if (!edicionJugadorId.value) return
-  if (!formularioEdicionJugador.name) {
-    errorEdicionJugador.value = 'El nombre del jugador es obligatorio.'
-    return
-  }
-  guardandoEdicionJugador.value = true
-  errorEdicionJugador.value = ''
-  try {
-    await updatePlayer(edicionJugadorId.value, {
-      ...formularioEdicionJugador,
-      number: Number(formularioEdicionJugador.number),
-    })
-    edicionJugadorId.value = null
-    await fetchPlayersByTeam(id)
-  } catch (err) {
-    console.error('Error al editar jugador:', err)
-    errorEdicionJugador.value = mensajeError(err, 'No se pudo guardar el jugador.')
-  } finally {
-    guardandoEdicionJugador.value = false
-  }
+const jugadorEditado = async () => {
+  edicionJugadorId.value = null
+  await fetchPlayersByTeam(id)
 }
 
 const quitarDeTitulares = async (player: Player) => {
@@ -186,42 +148,16 @@ const eliminarJugador = async (player: Player) => {
         <ul class="bench__list">
           <li v-for="player in suplentes" :key="player.id" class="bench-card">
             <template v-if="edicionJugadorId === player.id">
-              <form class="player-edit-form" @submit.prevent="guardarEdicionJugador">
-                <div class="player-edit-form__grid">
-                  <select v-model="nombreSeleccionadoEdicion" class="field__input" required>
-                    <option value="" disabled>Selecciona un nombre</option>
-                    <option v-for="n in nombresDisponibles" :key="n" :value="n">{{ n }}</option>
-                  </select>
-                  <input
-                    v-if="escribirNombrePropioEdicion"
-                    v-model="formularioEdicionJugador.name"
-                    type="text"
-                    class="field__input"
-                    placeholder="Escribe el nombre del jugador"
-                    required
-                  />
-                  <input v-model.number="formularioEdicionJugador.number" type="number" min="1" max="26" class="field__input" />
-                  <select v-model="formularioEdicionJugador.position" class="field__input">
-                    <option v-for="p in POSICIONES_JUGADOR" :key="p" :value="p">{{ p }}</option>
-                  </select>
-                  <select v-model="formularioEdicionJugador.club" class="field__input">
-                    <option value="" disabled>Selecciona un club</option>
-                    <option v-for="club in CLUBES_REFERENCIA" :key="club" :value="club">{{ club }}</option>
-                  </select>
-                </div>
-                <label class="field__checkbox">
-                  <input v-model="formularioEdicionJugador.titular" type="checkbox" />
-                  <span>Titular</span>
-                </label>
-                <p v-if="errorEdicionJugador" class="form-error">{{ errorEdicionJugador }}</p>
-                <div class="player-edit-form__actions">
-                  <button type="submit" class="btn-edit" :disabled="guardandoEdicionJugador">
-                    {{ guardandoEdicionJugador ? 'Guardando...' : 'Guardar' }}
-                  </button>
-                  <button type="button" class="btn-delete-inline" @click="eliminarJugador(player)">Eliminar</button>
-                  <button type="button" class="btn-cancel" @click="cancelarEdicionJugador">Cancelar</button>
-                </div>
-              </form>
+              <div class="bench-edit-form">
+                <PlayerEditForm
+                  :player="player"
+                  :nombres-disponibles="nombresDisponibles"
+                  show-delete
+                  @saved="jugadorEditado"
+                  @cancel="cancelarEdicionJugador"
+                  @delete="eliminarJugador(player)"
+                />
+              </div>
             </template>
             <button v-else type="button" class="bench-card__button" :class="{ 'bench-card__button--static': !user }" @click="seleccionarJugador(player)">
               <span class="bench-card__avatar">👤</span>
@@ -337,55 +273,6 @@ const eliminarJugador = async (player: Player) => {
   font-weight: 600;
 }
 
-.field__input {
-  width: 100%;
-  min-width: 0;
-  padding: 10px 14px;
-  border: 1px solid var(--border-glass);
-  border-radius: var(--radius-md);
-  font-size: 0.9rem;
-  color: var(--text-primary);
-  background: var(--bg-surface);
-}
-
-.field__input:focus {
-  outline: none;
-  border-color: var(--gold-start);
-  box-shadow: 0 0 0 3px rgba(255, 214, 10, 0.1);
-}
-
-select.field__input {
-  appearance: none;
-  -webkit-appearance: none;
-  text-overflow: ellipsis;
-  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='12' viewBox='0 0 24 24' fill='none' stroke='%238b95a5' stroke-width='2.5' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpolyline points='6 9 12 15 18 9'%3E%3C/polyline%3E%3C/svg%3E");
-  background-repeat: no-repeat;
-  background-position: right 14px center;
-  padding-right: 36px;
-}
-
-.field__checkbox {
-  display: flex;
-  align-items: center;
-  gap: 10px;
-  width: fit-content;
-  padding: 10px 16px;
-  border-radius: var(--radius-md);
-  background: var(--bg-surface);
-  border: 1px solid var(--border-glass);
-  font-size: 0.85rem;
-  font-weight: 600;
-  color: var(--text-primary);
-  cursor: pointer;
-}
-
-.field__checkbox input {
-  width: 18px;
-  height: 18px;
-  accent-color: var(--gold-start);
-  cursor: pointer;
-}
-
 .form-error {
   color: #ff6b6b;
   font-size: 0.85rem;
@@ -401,65 +288,12 @@ select.field__input {
   width: fit-content;
 }
 
-.btn-edit {
-  padding: 10px 22px;
-  border-radius: var(--radius-md);
-  background: var(--gold-gradient);
-  color: #0a0e1a;
-  font-weight: 700;
-  font-size: 0.88rem;
-}
-
-.btn-edit:disabled {
-  opacity: 0.6;
-  cursor: not-allowed;
-}
-
-.btn-cancel {
-  padding: 10px 22px;
-  border-radius: var(--radius-md);
-  background: var(--bg-surface);
-  border: 1px solid var(--border-subtle);
-  color: var(--text-secondary);
-  font-weight: 600;
-  font-size: 0.88rem;
-}
-
-.btn-delete-inline {
-  padding: 10px 22px;
-  border-radius: var(--radius-md);
-  background: var(--bg-surface);
-  border: 1px solid rgba(255, 107, 107, 0.3);
-  color: #ff6b6b;
-  font-weight: 600;
-  font-size: 0.88rem;
-}
-
-.btn-delete-inline:hover {
-  background: rgba(255, 107, 107, 0.08);
-}
-
-.player-edit-form {
-  display: flex;
-  flex-direction: column;
-  gap: var(--space-md);
+.bench-edit-form {
   width: 100%;
   padding: var(--space-md);
   border-radius: var(--radius-md);
   background: var(--bg-surface);
   border: 1px solid var(--border-glass);
-}
-
-.player-edit-form__grid {
-  display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(140px, 1fr));
-  gap: var(--space-sm);
-}
-
-.player-edit-form__actions {
-  display: flex;
-  flex-wrap: wrap;
-  gap: var(--space-sm);
 }
 
 /* ── Alineación: suplentes + cancha ─────────────────────────── */

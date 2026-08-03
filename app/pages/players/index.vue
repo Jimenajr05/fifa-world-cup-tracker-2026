@@ -1,7 +1,10 @@
 <script setup lang="ts">
+import { collection, doc, getDocs, updateDoc } from 'firebase/firestore'
 import { POSICIONES_JUGADOR } from '~/utils/worldCupData'
 import { CONVOCADOS_POR_SELECCION } from '~/utils/rosterData'
+import type { Player } from '~/composables/usePlayers'
 
+const { user } = useAuth()
 const { players, loading, error, fetchAllPlayers, createPlayer } = usePlayers()
 const { teams, fetchTeams } = useTeams()
 const { obtenerGolesPorJugador } = useStatistics()
@@ -78,6 +81,7 @@ const asignarNumeros = (jugadores: typeof CONVOCADOS_POR_SELECCION[string]) => {
 
 const cargandoConvocados = ref(false)
 const resultadoConvocados = ref('')
+const actualizandoTitulares = ref(false)
 
 const cargarConvocadosOficiales = async () => {
   cargandoConvocados.value = true
@@ -102,7 +106,7 @@ const cargarConvocadosOficiales = async () => {
             number: jugador.number as number,
             position: jugador.position,
             club: jugador.club ?? 'Sin club',
-            titular: false,
+            titular: jugador.titular,
           })
           creados++
         } catch (err) {
@@ -115,6 +119,69 @@ const cargarConvocadosOficiales = async () => {
     resultadoConvocados.value = `Listo: ${creados} jugadores creados, ${omitidos} ya tenían plantilla${fallidos ? `, ${fallidos} fallaron` : ''}.`
   } finally {
     cargandoConvocados.value = false
+  }
+}
+
+const asignarTitularesEnLote = async () => {
+  actualizandoTitulares.value = true
+  resultadoConvocados.value = ''
+  let actualizados = 0
+  let fallidos = 0
+  
+  try {
+    const { db: $firestore } = useFirestore()
+    const playersCol = collection($firestore, 'players')
+    const snap = await getDocs(playersCol)
+    const todosJugadores = snap.docs.map(doc => ({ id: doc.id, ...doc.data() as Omit<Player, 'id'> }))
+    
+    // Agrupar por equipo
+    const jugadoresPorEquipo = new Map<string, typeof todosJugadores>()
+    for (const p of todosJugadores) {
+      if (!jugadoresPorEquipo.has(p.teamId)) {
+        jugadoresPorEquipo.set(p.teamId, [])
+      }
+      jugadoresPorEquipo.get(p.teamId)!.push(p)
+    }
+    
+    // Para cada equipo, ordenar por número y asignar 11 titulares
+    for (const [_, squad] of jugadoresPorEquipo.entries()) {
+      squad.sort((a, b) => a.number - b.number)
+      
+      const porteroIndex = squad.findIndex(p => p.position === 'Portero')
+      const titularesIds = new Set<string>()
+      
+      if (porteroIndex !== -1) {
+        titularesIds.add(squad[porteroIndex].id)
+      }
+      
+      for (const p of squad) {
+        if (titularesIds.size >= 11) break
+        if (p.id !== (porteroIndex !== -1 ? squad[porteroIndex].id : '')) {
+          titularesIds.add(p.id)
+        }
+      }
+      
+      for (const p of squad) {
+        const isTitular = titularesIds.has(p.id)
+        if (p.titular !== isTitular) {
+          try {
+            await updateDoc(doc($firestore, 'players', p.id), { titular: isTitular })
+            actualizados++
+          } catch (err) {
+            console.error(`Error al actualizar titular para ${p.name}:`, err)
+            fallidos++
+          }
+        }
+      }
+    }
+    
+    await cargar()
+    resultadoConvocados.value = `Listo: ${actualizados} jugadores actualizados como titulares en lote${fallidos ? `, ${fallidos} fallaron` : ''}.`
+  } catch (err) {
+    console.error('Error al asignar titulares en lote:', err)
+    resultadoConvocados.value = 'Error al procesar la actualización en lote.'
+  } finally {
+    actualizandoTitulares.value = false
   }
 }
 </script>
@@ -146,8 +213,11 @@ const cargarConvocadosOficiales = async () => {
       <button class="btn-refetch" @click="cargar" :disabled="loading">
         Actualizar
       </button>
-      <button v-if="user" class="btn-refetch" :disabled="cargandoConvocados" @click="cargarConvocadosOficiales">
+      <button v-if="user" class="btn-refetch" :disabled="cargandoConvocados || actualizandoTitulares" @click="cargarConvocadosOficiales">
         {{ cargandoConvocados ? 'Cargando...' : '⚡ Cargar convocados oficiales' }}
+      </button>
+      <button v-if="user" class="btn-refetch" :disabled="cargandoConvocados || actualizandoTitulares" @click="asignarTitularesEnLote">
+        {{ actualizandoTitulares ? 'Actualizando...' : '⚙️ Asignar titulares en lote' }}
       </button>
     </div>
 
@@ -177,32 +247,36 @@ const cargarConvocadosOficiales = async () => {
     </div>
 
     <!-- Listado -->
-    <div v-else class="players-grid">
-      <NuxtLink
-        v-for="player in jugadoresFiltrados"
-        :key="player.id"
-        :to="`/teams/${player.teamId}/players`"
-        class="player-card glass animate-slide-up"
-      >
-        <span class="player-card__number">{{ player.number }}</span>
-        <div class="player-card__info">
-          <p class="player-card__name">{{ player.name }}</p>
-          <p class="player-card__meta">
-            {{ player.position }} · {{ player.club || 'Sin club' }} ·
-            <span class="player-card__goals">⚽ {{ golesPorJugador.get(player.id) ?? 0 }}</span>
-          </p>
-          <p v-if="equipoPorId.get(player.teamId)" class="player-card__team">
-            <img
-              v-if="equipoPorId.get(player.teamId)?.flag"
-              :src="equipoPorId.get(player.teamId)?.flag"
-              :alt="equipoPorId.get(player.teamId)?.name"
-              class="player-card__flag"
-            />
-            {{ equipoPorId.get(player.teamId)?.name }}
-          </p>
-        </div>
-      </NuxtLink>
-    </div>
+    <template v-else>
+      <div class="players-grid">
+        <NuxtLink
+          v-for="player in jugadoresPaginados"
+          :key="player.id"
+          :to="`/teams/${player.teamId}/players`"
+          class="player-card glass animate-slide-up"
+        >
+          <span class="player-card__number">{{ player.number }}</span>
+          <div class="player-card__info">
+            <p class="player-card__name">{{ player.name }}</p>
+            <p class="player-card__meta">
+              {{ player.position }} · {{ player.club || 'Sin club' }} ·
+              <span class="player-card__goals">⚽ {{ golesPorJugador.get(player.id) ?? 0 }}</span>
+            </p>
+            <p v-if="equipoPorId.get(player.teamId)" class="player-card__team">
+              <img
+                v-if="equipoPorId.get(player.teamId)?.flag"
+                :src="equipoPorId.get(player.teamId)?.flag"
+                :alt="equipoPorId.get(player.teamId)?.name"
+                class="player-card__flag"
+              />
+              {{ equipoPorId.get(player.teamId)?.name }}
+            </p>
+          </div>
+        </NuxtLink>
+      </div>
+
+      <Pagination v-model:pagina-actual="paginaActual" :total-paginas="totalPaginas" />
+    </template>
   </div>
 </template>
 

@@ -1,45 +1,15 @@
 <script setup lang="ts">
-import type { NewTeam } from '~/composables/useTeams'
-import { CONFEDERACIONES, GRUPOS, GRUPO_POR_SELECCION, FIFA_RANKING_POR_SELECCION, SELECCIONES_REFERENCIA, nombresSelecciones, buscarSeleccionPorNombre, urlBanderaPorCodigo, ENTRENADORES_POR_SELECCION, OTRO_ENTRENADOR } from '~/utils/worldCupData'
+import { CONFEDERACIONES, GRUPO_POR_SELECCION, FIFA_RANKING_POR_SELECCION, SELECCIONES_REFERENCIA, urlBanderaPorCodigo, ENTRENADORES_POR_SELECCION } from '~/utils/worldCupData'
 import { mensajeError } from '~/utils/validation'
 
 const { teams, loading, error, fetchTeams, createTeam, deleteTeam } = useTeams()
 const { user } = useAuth()
 const { confirmar } = useConfirm()
-const { subiendo, errorSubida, subirArchivo } = useFirebaseStorage()
 
 const busqueda = ref('')
 const grupoFiltro = ref('')
 const confederacionFiltro = ref('')
 const mostrarFormulario = ref(false)
-const creando = ref(false)
-const errorFormulario = ref('')
-
-const nuevoEquipo = reactive<NewTeam>({
-  name: '',
-  group: '',
-  flag: '',
-  coach: '',
-  confederation: '',
-  fifaRanking: 1,
-})
-
-// Combo box de entrenador: muestra el entrenador REAL 2026 de la selección
-// elegida (si está clasificada y confirmado), más "Otro" para escribirlo a mano
-const entrenadorSeleccionado = ref('')
-const escribirEntrenadorPropio = computed(() => entrenadorSeleccionado.value === OTRO_ENTRENADOR)
-const entrenadoresDisponibles = computed(() => {
-  const real = ENTRENADORES_POR_SELECCION[nuevoEquipo.name]
-  return real ? [real, OTRO_ENTRENADOR] : [OTRO_ENTRENADOR]
-})
-watch(entrenadorSeleccionado, (valor) => {
-  nuevoEquipo.coach = valor === OTRO_ENTRENADOR ? '' : valor
-})
-// Si cambia la selección elegida y el entrenador ya no corresponde, se resetea
-watch(() => nuevoEquipo.name, () => {
-  entrenadorSeleccionado.value = ''
-  nuevoEquipo.coach = ''
-})
 
 const cargar = () => fetchTeams()
 
@@ -86,62 +56,9 @@ const equiposPaginados = computed(() => {
   return equiposFiltrados.value.slice(inicio, inicio + EQUIPOS_POR_PAGINA)
 })
 
-// Al elegir el nombre en el combo box, autocompleta bandera, confederación
-// y el grupo oficial del sorteo del Mundial 2026 (el usuario puede cambiarlo)
-watch(() => nuevoEquipo.name, (nombre) => {
-  const seleccion = buscarSeleccionPorNombre(nombre)
-  if (seleccion) {
-    nuevoEquipo.flag = urlBanderaPorCodigo(seleccion.code)
-    nuevoEquipo.confederation = seleccion.confederation
-  }
-  const grupoOficial = GRUPO_POR_SELECCION[nombre]
-  if (grupoOficial) {
-    nuevoEquipo.group = grupoOficial
-  }
-})
-
-const resetFormulario = () => {
-  nuevoEquipo.name = ''
-  nuevoEquipo.group = ''
-  nuevoEquipo.flag = ''
-  nuevoEquipo.coach = ''
-  nuevoEquipo.confederation = ''
-  nuevoEquipo.fifaRanking = 1
-  entrenadorSeleccionado.value = ''
-  errorFormulario.value = ''
-}
-
-const agregarEquipo = async () => {
-  if (!nuevoEquipo.name || !nuevoEquipo.group) {
-    errorFormulario.value = 'El nombre y el grupo son obligatorios.'
-    return
-  }
-  creando.value = true
-  errorFormulario.value = ''
-  try {
-    await createTeam({ ...nuevoEquipo, fifaRanking: Number(nuevoEquipo.fifaRanking) })
-    resetFormulario()
-    mostrarFormulario.value = false
-    await cargar()
-  } catch (err) {
-    console.error('Error al crear selección:', err)
-    errorFormulario.value = mensajeError(err, 'No se pudo guardar la selección.')
-  } finally {
-    creando.value = false
-  }
-}
-
-// Permite reemplazar la bandera autocompletada por una imagen propia,
-// subida a Firebase Storage (recurso multimedia del equipo)
-const subirBanderaPersonalizada = async (evento: Event) => {
-  const archivo = (evento.target as HTMLInputElement).files?.[0]
-  if (!archivo) return
-  try {
-    const ruta = `flags/${Date.now()}-${archivo.name}`
-    nuevoEquipo.flag = await subirArchivo(ruta, archivo)
-  } catch {
-    // errorSubida ya queda seteado dentro de useStorage
-  }
+const equipoCreado = async () => {
+  mostrarFormulario.value = false
+  await cargar()
 }
 
 // Carga masiva: crea de un solo click las 48 selecciones oficiales del
@@ -228,62 +145,7 @@ const eliminarEquipo = async (id: string) => {
 
     <!-- Formulario de creación -->
     <Transition name="fade">
-      <form v-if="mostrarFormulario" class="team-form glass animate-slide-up" @submit.prevent="agregarEquipo">
-        <div class="team-form__grid">
-          <div class="field">
-            <label class="field__label">Nombre</label>
-            <select v-model="nuevoEquipo.name" class="field__input" required>
-              <option value="" disabled>Selecciona una selección</option>
-              <option v-for="nombre in nombresSelecciones" :key="nombre" :value="nombre">{{ nombre }}</option>
-            </select>
-          </div>
-          <div class="field">
-            <label class="field__label">Grupo</label>
-            <select v-model="nuevoEquipo.group" class="field__input" required>
-              <option value="" disabled>Selecciona un grupo</option>
-              <option v-for="g in GRUPOS" :key="g" :value="g">Grupo {{ g }}</option>
-            </select>
-          </div>
-          <div class="field">
-            <label class="field__label">Bandera</label>
-            <input v-model="nuevoEquipo.flag" type="text" class="field__input" placeholder="Se completa automáticamente" readonly />
-            <label class="upload-btn">
-              {{ subiendo ? 'Subiendo...' : '📷 Subir imagen propia' }}
-              <input type="file" accept="image/*" hidden :disabled="subiendo" @change="subirBanderaPersonalizada" />
-            </label>
-            <p v-if="errorSubida" class="form-error">{{ errorSubida }}</p>
-          </div>
-          <div class="field">
-            <label class="field__label">Entrenador</label>
-            <select v-model="entrenadorSeleccionado" class="field__input" :disabled="!nuevoEquipo.name">
-              <option value="" disabled>{{ nuevoEquipo.name ? 'Selecciona un entrenador' : 'Primero elige la selección' }}</option>
-              <option v-for="e in entrenadoresDisponibles" :key="e" :value="e">{{ e }}</option>
-            </select>
-            <input
-              v-if="escribirEntrenadorPropio"
-              v-model="nuevoEquipo.coach"
-              type="text"
-              class="field__input"
-              placeholder="Escribe el nombre del entrenador"
-            />
-          </div>
-          <div class="field">
-            <label class="field__label">Confederación</label>
-            <select v-model="nuevoEquipo.confederation" class="field__input" required>
-              <option value="" disabled>Selecciona una confederación</option>
-              <option v-for="c in CONFEDERACIONES" :key="c" :value="c">{{ c }}</option>
-            </select>
-          </div>
-          <div class="field">
-            <label class="field__label">Ranking FIFA</label>
-            <input v-model.number="nuevoEquipo.fifaRanking" type="number" min="1" class="field__input" />
-          </div>
-        </div>
-        <p v-if="errorFormulario" class="form-error">{{ errorFormulario }}</p>
-        <button type="submit" class="save-btn" :disabled="creando">
-          {{ creando ? 'Guardando...' : 'Guardar selección' }}
-        </button>
-      </form>
+      <TeamForm v-if="mostrarFormulario" @created="equipoCreado" />
     </Transition>
 
     <!-- Búsqueda y filtros -->
@@ -406,21 +268,6 @@ const eliminarEquipo = async (id: string) => {
   transform: translateY(-2px);
 }
 
-/* Form */
-.team-form {
-  padding: var(--space-xl);
-  border-radius: var(--radius-lg);
-  display: flex;
-  flex-direction: column;
-  gap: var(--space-lg);
-}
-
-.team-form__grid {
-  display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
-  gap: var(--space-md);
-}
-
 .field {
   display: flex;
   flex-direction: column;
@@ -465,42 +312,6 @@ select.field__input {
 .form-error {
   color: #ff6b6b;
   font-size: 0.85rem;
-}
-
-.upload-btn {
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  margin-top: 6px;
-  padding: 8px 14px;
-  border-radius: var(--radius-sm);
-  background: var(--bg-surface);
-  border: 1px solid var(--border-subtle);
-  color: var(--text-secondary);
-  font-size: 0.78rem;
-  font-weight: 600;
-  cursor: pointer;
-  transition: all var(--transition-fast);
-}
-
-.upload-btn:hover {
-  color: var(--text-primary);
-  border-color: var(--border-glass);
-}
-
-.save-btn {
-  align-self: flex-start;
-  padding: 12px 24px;
-  border-radius: var(--radius-md);
-  background: var(--gold-gradient);
-  color: #0a0e1a;
-  font-weight: 700;
-  font-size: 0.9rem;
-}
-
-.save-btn:disabled {
-  opacity: 0.6;
-  cursor: not-allowed;
 }
 
 /* Filters */

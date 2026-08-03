@@ -110,6 +110,15 @@ export const useMatches = () => {
         throw new ValidationError(`Los goleadores de ${data.awayTeam} suman más goles (${goles}) que el marcador (${data.awayScore}).`)
       }
     }
+    // Ensure the number of scorer entries does not exceed the total goals for the team
+    const scorerCountHome = scorers.filter((s) => s.teamId === data.homeTeamId).length;
+    if (data.homeScore !== null && scorerCountHome > data.homeScore) {
+      throw new ValidationError(`Se han ingresado ${scorerCountHome} goleadores para ${data.homeTeam}, pero el marcador indica solo ${data.homeScore} goles.`);
+    }
+    const scorerCountAway = scorers.filter((s) => s.teamId === data.awayTeamId).length;
+    if (data.awayScore !== null && scorerCountAway > data.awayScore) {
+      throw new ValidationError(`Se han ingresado ${scorerCountAway} goleadores para ${data.awayTeam}, pero el marcador indica solo ${data.awayScore} goles.`);
+    }
     if (scorers.some((s) => !Number.isInteger(s.goals) || s.goals < 1)) {
       throw new ValidationError('Cada goleador debe tener al menos 1 gol registrado.')
     }
@@ -162,7 +171,35 @@ export const useMatches = () => {
     await Promise.all(snap.docs.map((d) => deleteDoc(d.ref)))
   }
 
-  const createMatch = async (data: NewMatch, opciones?: { permitirFechaPasada?: boolean }) => {
+  const validarAlineacionTitular = async (nombreEquipo: string, equipoId?: string | null) => {
+    let targetTeamId = equipoId
+    if (!targetTeamId) {
+      const qTeam = query(collection($firestore, 'teams'), where('name', '==', nombreEquipo))
+      const snapTeam = await getDocs(qTeam)
+      if (!snapTeam.empty) {
+        targetTeamId = snapTeam.docs[0].id
+      }
+    }
+
+    if (!targetTeamId) {
+      throw new ValidationError(`La selección "${nombreEquipo}" aún no está registrada en el sistema.`)
+    }
+
+    const qPlayers = query(collection($firestore, 'players'), where('teamId', '==', targetTeamId))
+    const snapPlayers = await getDocs(qPlayers)
+    const titulares = snapPlayers.docs.filter((d) => d.data().titular === true)
+
+    if (titulares.length < 11) {
+      throw new ValidationError(
+        `La selección "${nombreEquipo}" no tiene 11 jugadores en su alineación titular (actualmente tiene ${titulares.length}/11). Debe definir los 11 titulares antes de poder crear un partido.`
+      )
+    }
+  }
+
+  const createMatch = async (
+    data: NewMatch,
+    opciones?: { permitirFechaPasada?: boolean; omitirValidacionAlineacion?: boolean }
+  ) => {
     validarDatosPartido(data)
     if (
       data.status === 'Programado'
@@ -174,6 +211,12 @@ export const useMatches = () => {
     if (await partidoDuplicado(data)) {
       throw new ValidationError('Ya existe un partido entre estos equipos con la misma fecha y hora.')
     }
+
+    if (!opciones?.omitirValidacionAlineacion) {
+      await validarAlineacionTitular(data.homeTeam, data.homeTeamId)
+      await validarAlineacionTitular(data.awayTeam, data.awayTeamId)
+    }
+
     const ref = await addDoc(matchesCollection(), data)
     return ref.id
   }

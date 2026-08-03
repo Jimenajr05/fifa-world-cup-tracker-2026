@@ -1,21 +1,16 @@
 <script setup lang="ts">
 import type { Match } from '~/composables/useMatches'
-import { mensajeError } from '~/utils/validation'
 
 const route = useRoute()
-const router = useRouter()
 const matchId = route.params.matchId as string
 
 const { fetchMatchById } = useMatches()
-const { fetchPredictionByMatch, guardarPrediccion } = usePredictions()
+const { fetchPredictionByMatch } = usePredictions()
 const { user } = useAuth()
 
 const match = ref<Match | null>(null)
 const loading = ref(false)
 const error = ref('')
-const guardando = ref(false)
-const errorFormulario = ref('')
-const mensajeExito = ref(false)
 
 const homePrediction = ref<number | null>(null)
 const awayPrediction = ref<number | null>(null)
@@ -52,32 +47,6 @@ onMounted(cargar)
 
 // Una vez que el partido deja de estar "Programado" ya no se puede pronosticar
 const puedePronosticar = computed(() => match.value?.status === 'Programado')
-
-const guardar = async () => {
-  errorFormulario.value = ''
-  if (!user.value || !match.value) return
-  if (homePrediction.value === null || awayPrediction.value === null) {
-    errorFormulario.value = 'Ingresa un marcador para ambos equipos.'
-    return
-  }
-  if (homePrediction.value < 0 || awayPrediction.value < 0) {
-    errorFormulario.value = 'El marcador no puede ser negativo.'
-    return
-  }
-
-  guardando.value = true
-  try {
-    await guardarPrediccion(user.value.uid, matchId, homePrediction.value, awayPrediction.value)
-    mensajeExito.value = true
-    yaExistePrediccion.value = true
-    setTimeout(() => { mensajeExito.value = false }, 3000)
-  } catch (err) {
-    console.error('Error al guardar predicción:', err)
-    errorFormulario.value = mensajeError(err, 'No se pudo guardar tu predicción.')
-  } finally {
-    guardando.value = false
-  }
-}
 
 const formatearFecha = (ts: { toDate: () => Date }) =>
   ts.toDate().toLocaleString('es', { day: '2-digit', month: 'long', year: 'numeric', hour: '2-digit', minute: '2-digit' })
@@ -122,28 +91,15 @@ const formatearFecha = (ts: { toDate: () => Date }) =>
         Este partido ya no está en estado "Programado", así que no se puede pronosticar ni editar la predicción.
       </p>
 
-      <form v-else class="prediction-form" @submit.prevent="guardar">
-        <div class="prediction-form__grid">
-          <div class="field">
-            <label class="field__label">{{ match.homeTeam }}</label>
-            <input v-model.number="homePrediction" type="number" min="0" class="field__input" required />
-          </div>
-          <div class="field">
-            <label class="field__label">{{ match.awayTeam }}</label>
-            <input v-model.number="awayPrediction" type="number" min="0" class="field__input" required />
-          </div>
-        </div>
-
-        <p v-if="errorFormulario" class="form-error">{{ errorFormulario }}</p>
-
-        <button type="submit" class="save-btn" :disabled="guardando">
-          {{ guardando ? 'Guardando...' : yaExistePrediccion ? 'Actualizar predicción' : 'Guardar predicción' }}
-        </button>
-
-        <Transition name="fade">
-          <p v-if="mensajeExito" class="success-msg">Predicción guardada correctamente</p>
-        </Transition>
-      </form>
+      <PredictionForm
+        v-else
+        :match-id="matchId"
+        :home-team="match.homeTeam"
+        :away-team="match.awayTeam"
+        :initial-home-prediction="homePrediction"
+        :initial-away-prediction="awayPrediction"
+        :ya-existe-prediccion="yaExistePrediccion"
+      />
 
       <p class="scoring-hint">
         Puntuación: 3 pts por marcador exacto · 1 pt por acertar solo el ganador
@@ -240,95 +196,9 @@ const formatearFecha = (ts: { toDate: () => Date }) =>
   text-align: center;
 }
 
-.prediction-form {
-  display: flex;
-  flex-direction: column;
-  gap: var(--space-lg);
-}
-
-.prediction-form__grid {
-  display: grid;
-  grid-template-columns: 1fr 1fr;
-  gap: var(--space-lg);
-}
-
-.field {
-  display: flex;
-  flex-direction: column;
-  gap: var(--space-sm);
-}
-
-.field__label {
-  font-size: 0.78rem;
-  font-weight: 600;
-  color: var(--text-secondary);
-  text-transform: uppercase;
-  letter-spacing: 0.05em;
-  text-align: center;
-}
-
-.field__input {
-  width: 100%;
-  padding: 12px;
-  border: 1px solid var(--border-glass);
-  border-radius: var(--radius-md);
-  font-size: 1.1rem;
-  font-weight: 700;
-  text-align: center;
-  color: var(--text-primary);
-  background: var(--bg-surface);
-}
-
-.field__input:focus {
-  outline: none;
-  border-color: var(--gold-start);
-  box-shadow: 0 0 0 3px rgba(255, 214, 10, 0.1);
-}
-
-.form-error {
-  color: #ff6b6b;
-  font-size: 0.85rem;
-  text-align: center;
-}
-
-.save-btn {
-  padding: 12px 24px;
-  border-radius: var(--radius-md);
-  background: var(--gold-gradient);
-  color: #0a0e1a;
-  font-weight: 700;
-  font-size: 0.9rem;
-}
-
-.save-btn:disabled {
-  opacity: 0.6;
-  cursor: not-allowed;
-}
-
-.success-msg {
-  text-align: center;
-  padding: 10px;
-  border-radius: var(--radius-md);
-  font-size: 0.85rem;
-  font-weight: 600;
-  color: var(--green-primary);
-  background: rgba(0, 184, 148, 0.08);
-  border: 1px solid rgba(0, 184, 148, 0.2);
-}
-
 .scoring-hint {
   text-align: center;
   font-size: 0.75rem;
   color: var(--text-muted);
-}
-
-.fade-enter-active,
-.fade-leave-active {
-  transition: opacity 0.25s ease;
-}
-
-.fade-enter-from,
-.fade-leave-to {
-  opacity: 0;
 }
 </style>

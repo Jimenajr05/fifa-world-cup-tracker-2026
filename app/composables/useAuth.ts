@@ -48,9 +48,9 @@ export const useAuth = () => {
 
     await setDoc(userRef, {
       uid: usuario.uid,
-      nombre: usuario.displayName,
+      nombre: datosExistentes?.nombre ?? usuario.displayName,
       email: usuario.email,
-      foto: usuario.photoURL,
+      foto: datosExistentes?.foto ?? usuario.photoURL,
       // Si el documento no existía, inicializa campos por defecto y guarda fecha de creación
       ...(existente.exists() ? {} : { seleccionFavorita: null, campeonElegido: null, puntos: 0, equiposFavoritos: [], partidosFavoritos: [], creadoEn: serverTimestamp() }),
       ...camposFaltantes,
@@ -81,8 +81,8 @@ export const useAuth = () => {
     }
   }
 
-  // Permite editar nombre y/o selección favorita
-  const actualizarPerfil = async (cambios: { nombre?: string; seleccionFavorita?: string }) => {
+  // Permite editar nombre, foto y/o selección favorita
+  const actualizarPerfil = async (cambios: { nombre?: string; seleccionFavorita?: string; foto?: string }) => {
     if (!user.value) return
     if (cambios.nombre !== undefined) {
       requerido(cambios.nombre, 'El nombre')

@@ -1,8 +1,19 @@
 <script setup lang="ts">
-const { user, logout } = useAuth()
+const { user, perfil, logout } = useAuth()
 
 const mobileMenuOpen = ref(false)
 const scrolled = ref(false)
+
+const imgError = ref(false)
+const fotoUrl = computed(() => perfil.value?.foto || user.value?.photoURL || '')
+watch(fotoUrl, () => {
+  imgError.value = false
+})
+
+const iniciales = computed(() => {
+  const base = perfil.value?.nombre || user.value?.displayName || user.value?.email || ''
+  return base.trim().charAt(0).toUpperCase() || '?'
+})
 
 if (import.meta.client) {
   window.addEventListener('scroll', () => {
@@ -61,13 +72,15 @@ if (import.meta.client) {
         <div v-if="user" class="navbar__user">
           <div class="navbar__avatar-wrap">
             <img
-              v-if="user.photoURL"
-              :src="user.photoURL"
-              :alt="user.displayName ?? 'Avatar'"
+              v-if="fotoUrl && !imgError"
+              :src="fotoUrl"
+              :alt="perfil?.nombre || user.displayName || 'Avatar'"
               class="navbar__avatar"
+              referrerpolicy="no-referrer"
+              @error="imgError = true"
             />
             <span v-else class="navbar__avatar navbar__avatar--fallback">
-              {{ (user.displayName ?? user.email ?? '?').charAt(0).toUpperCase() }}
+              {{ iniciales }}
             </span>
             <span class="navbar__avatar-ring" />
           </div>

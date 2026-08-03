@@ -1,29 +1,20 @@
 <script setup lang="ts">
 import { nombresSelecciones } from '~/utils/worldCupData'
-import { mensajeError } from '~/utils/validation'
 
-const { user, perfil, cargandoPerfil, actualizarPerfil, elegirCampeon, errorCampeon, cargarPerfil } = useAuth()
+const { user, perfil, cargandoPerfil, elegirCampeon, errorCampeon, cargarPerfil } = useAuth()
 
 const recargarPerfil = () => {
   if (user.value) cargarPerfil(user.value.uid)
 }
 
-const nombreEditable = ref('')
-const seleccionEditable = ref<string | null>(null)
-const guardando = ref(false)
-const mensajeExito = ref(false)
-const errorPerfil = ref('')
-
-// Sincroniza el formulario cuando el perfil termina de cargar
-watch(perfil, (nuevoPerfil) => {
-  if (nuevoPerfil) {
-    nombreEditable.value = nuevoPerfil.nombre ?? ''
-    seleccionEditable.value = nuevoPerfil.seleccionFavorita ?? null
-  }
-}, { immediate: true })
+const imgError = ref(false)
+const fotoUrl = computed(() => perfil.value?.foto || user.value?.photoURL || '')
+watch(fotoUrl, () => {
+  imgError.value = false
+})
 
 const iniciales = computed(() => {
-  const base = nombreEditable.value || perfil.value?.nombre || user.value?.email || ''
+  const base = perfil.value?.nombre || user.value?.displayName || user.value?.email || ''
   return base.trim().charAt(0).toUpperCase() || '?'
 })
 
@@ -40,25 +31,6 @@ const confirmarCampeon = async () => {
     await elegirCampeon(campeonSeleccionado.value)
   } finally {
     guardandoCampeon.value = false
-  }
-}
-
-const guardarCambios = async () => {
-  guardando.value = true
-  mensajeExito.value = false
-  errorPerfil.value = ''
-  try {
-    await actualizarPerfil({
-      nombre: nombreEditable.value,
-      seleccionFavorita: seleccionEditable.value ?? '',
-    })
-    mensajeExito.value = true
-    setTimeout(() => { mensajeExito.value = false }, 3000)
-  } catch (error) {
-    console.error('Error al guardar perfil:', error)
-    errorPerfil.value = mensajeError(error, 'No se pudo guardar el perfil.')
-  } finally {
-    guardando.value = false
   }
 }
 </script>
@@ -88,7 +60,15 @@ const guardarCambios = async () => {
         <!-- Header -->
         <div class="profile-header">
           <div class="avatar-container">
-            <div class="avatar">{{ iniciales }}</div>
+            <img
+              v-if="fotoUrl && !imgError"
+              :src="fotoUrl"
+              :alt="perfil?.nombre || user?.displayName || 'Avatar'"
+              class="avatar avatar-img"
+              referrerpolicy="no-referrer"
+              @error="imgError = true"
+            />
+            <div v-else class="avatar">{{ iniciales }}</div>
             <span class="avatar-ring" />
           </div>
           <div class="profile-info">
@@ -132,50 +112,11 @@ const guardarCambios = async () => {
         </NuxtLink>
 
         <!-- Form -->
-        <form @submit.prevent="guardarCambios" class="profile-form">
-          <div class="field">
-            <label for="nombre" class="field__label">
-              Nombre
-            </label>
-            <input
-              id="nombre"
-              v-model="nombreEditable"
-              type="text"
-              placeholder="Tu nombre"
-              required
-              class="field__input"
-            />
-          </div>
-
-          <div class="field">
-            <label for="seleccion" class="field__label">
-              Selección favorita
-            </label>
-            <select id="seleccion" v-model="seleccionEditable" class="field__input">
-              <option :value="null">Sin selección favorita</option>
-              <option v-for="pais in nombresSelecciones" :key="pais" :value="pais">
-                {{ pais }}
-              </option>
-            </select>
-          </div>
-
-          <p v-if="errorPerfil" class="form-error">{{ errorPerfil }}</p>
-          <button type="submit" class="save-btn" :disabled="guardando">
-            <span v-if="guardando" class="btn-spinner" />
-            <svg v-else width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
-              <path d="M19 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11l5 5v11a2 2 0 0 1-2 2z"/>
-              <polyline points="17 21 17 13 7 13 7 21"/>
-              <polyline points="7 3 7 8 15 8"/>
-            </svg>
-            {{ guardando ? 'Guardando...' : 'Guardar cambios' }}
-          </button>
-
-          <Transition name="fade">
-            <div v-if="mensajeExito" class="success-msg">
-              Perfil actualizado correctamente
-            </div>
-          </Transition>
-        </form>
+        <ProfileForm
+          :nombre-inicial="perfil.nombre ?? ''"
+          :seleccion-inicial="perfil.seleccionFavorita ?? null"
+          :foto-inicial="perfil.foto ?? user?.photoURL ?? ''"
+        />
       </template>
     </div>
   </div>
@@ -277,6 +218,7 @@ const guardarCambios = async () => {
   justify-content: center;
   position: relative;
   z-index: 1;
+  object-fit: cover;
 }
 
 .avatar-ring {
@@ -375,19 +317,6 @@ const guardarCambios = async () => {
   );
 }
 
-/* ── Form ──────────────────────────────────────────────────── */
-.profile-form {
-  display: flex;
-  flex-direction: column;
-  gap: var(--space-lg);
-}
-
-.field {
-  display: flex;
-  flex-direction: column;
-  gap: var(--space-sm);
-}
-
 .field__label {
   display: flex;
   align-items: center;
@@ -397,10 +326,6 @@ const guardarCambios = async () => {
   color: var(--text-secondary);
   text-transform: uppercase;
   letter-spacing: 0.05em;
-}
-
-.field__label-icon {
-  font-size: 0.85rem;
 }
 
 .field__input {
@@ -492,46 +417,6 @@ select.field__input {
 
 .save-btn:disabled::before {
   display: none;
-}
-
-.btn-spinner {
-  width: 16px;
-  height: 16px;
-  border: 2px solid rgba(10, 14, 26, 0.3);
-  border-top-color: #0a0e1a;
-  border-radius: 50%;
-  animation: spin 0.7s linear infinite;
-}
-
-/* ── Success Message ───────────────────────────────────────── */
-.success-msg {
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  gap: 8px;
-  padding: 12px;
-  border-radius: var(--radius-md);
-  font-size: 0.88rem;
-  font-weight: 600;
-  color: var(--green-primary);
-  background: rgba(0, 184, 148, 0.08);
-  border: 1px solid rgba(0, 184, 148, 0.2);
-}
-
-.success-msg__icon {
-  font-size: 1rem;
-}
-
-/* ── Transitions ───────────────────────────────────────────── */
-.fade-enter-active,
-.fade-leave-active {
-  transition: opacity 0.3s ease, transform 0.3s ease;
-}
-
-.fade-enter-from,
-.fade-leave-to {
-  opacity: 0;
-  transform: translateY(-4px);
 }
 
 /* ── Responsive ────────────────────────────────────────────── */

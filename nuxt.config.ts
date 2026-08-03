@@ -2,6 +2,9 @@
 export default defineNuxtConfig({
   modules: ['@pinia/nuxt'],
   css: ['~/assets/css/main.css'],
+  components: [
+    { path: '~/components', pathPrefix: false },
+  ],
   app: {
     head: {
       htmlAttrs: { lang: 'es' },

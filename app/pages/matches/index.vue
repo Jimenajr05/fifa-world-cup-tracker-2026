@@ -1,7 +1,6 @@
 <script setup lang="ts">
 import { Timestamp } from 'firebase/firestore'
-import type { NewMatch } from '~/composables/useMatches'
-import { FASES, GRUPOS, ESTADOS_PARTIDO, nombresEstadios, buscarEstadioPorNombre } from '~/utils/worldCupData'
+import { FASES, GRUPOS, ESTADOS_PARTIDO } from '~/utils/worldCupData'
 import { FIXTURE_FASE_GRUPOS } from '~/utils/worldCupFixture'
 import { mensajeError } from '~/utils/validation'
 
@@ -9,8 +8,6 @@ const { matches, loading, error, fetchMatches, createMatch, updateMatch, deleteM
 const { teams: equiposRegistrados, fetchTeams } = useTeams()
 const { user } = useAuth()
 const { confirmar } = useConfirm()
-
-const nombresEquiposRegistrados = computed(() => equiposRegistrados.value.map((t) => t.name).sort())
 
 // Busca el id del equipo por nombre, para poder relacionar el partido con su documento en "teams"
 const idDeEquipo = (nombre: string) => equiposRegistrados.value.find((t) => t.name === nombre)?.id ?? null
@@ -21,25 +18,6 @@ const estadoFiltro = ref('')
 const fechaFiltro = ref('')
 const ciudadFiltro = ref('')
 const mostrarFormulario = ref(false)
-const creando = ref(false)
-const errorFormulario = ref('')
-
-const nuevoPartido = reactive({
-  homeTeam: '',
-  awayTeam: '',
-  stage: '',
-  group: '',
-  stadium: '',
-  city: '',
-  fecha: '',
-  status: ESTADOS_PARTIDO[0],
-})
-
-// Al elegir el estadio, autocompleta la ciudad
-watch(() => nuevoPartido.stadium, (nombre) => {
-  const estadio = buscarEstadioPorNombre(nombre)
-  if (estadio) nuevoPartido.city = estadio.city
-})
 
 const cargar = () => fetchMatches()
 
@@ -91,59 +69,9 @@ const partidosPaginados = computed(() => {
   return partidosFiltrados.value.slice(inicio, inicio + PARTIDOS_POR_PAGINA)
 })
 
-const resetFormulario = () => {
-  nuevoPartido.homeTeam = ''
-  nuevoPartido.awayTeam = ''
-  nuevoPartido.stage = ''
-  nuevoPartido.group = ''
-  nuevoPartido.stadium = ''
-  nuevoPartido.city = ''
-  nuevoPartido.fecha = ''
-  nuevoPartido.status = ESTADOS_PARTIDO[0]
-  errorFormulario.value = ''
-}
-
-const agregarPartido = async () => {
-  if (!nuevoPartido.homeTeam || !nuevoPartido.awayTeam || !nuevoPartido.stage || !nuevoPartido.stadium || !nuevoPartido.fecha) {
-    errorFormulario.value = 'Completa equipos, fase, estadio y fecha.'
-    return
-  }
-  if (nuevoPartido.homeTeam === nuevoPartido.awayTeam) {
-    errorFormulario.value = 'Los dos equipos deben ser diferentes.'
-    return
-  }
-  if (nuevoPartido.stage === 'Fase de grupos' && !nuevoPartido.group) {
-    errorFormulario.value = 'Selecciona el grupo para un partido de fase de grupos.'
-    return
-  }
-
-  creando.value = true
-  errorFormulario.value = ''
-  try {
-    const data: NewMatch = {
-      homeTeam: nuevoPartido.homeTeam,
-      awayTeam: nuevoPartido.awayTeam,
-      homeTeamId: idDeEquipo(nuevoPartido.homeTeam),
-      awayTeamId: idDeEquipo(nuevoPartido.awayTeam),
-      stage: nuevoPartido.stage,
-      group: nuevoPartido.stage === 'Fase de grupos' ? nuevoPartido.group : null,
-      stadium: nuevoPartido.stadium,
-      city: nuevoPartido.city,
-      kickoff: Timestamp.fromDate(new Date(nuevoPartido.fecha)),
-      homeScore: null,
-      awayScore: null,
-      status: nuevoPartido.status,
-    }
-    await createMatch(data)
-    resetFormulario()
-    mostrarFormulario.value = false
-    await cargar()
-  } catch (err) {
-    console.error('Error al crear partido:', err)
-    errorFormulario.value = mensajeError(err, 'No se pudo guardar el partido.')
-  } finally {
-    creando.value = false
-  }
+const partidoCreado = async () => {
+  mostrarFormulario.value = false
+  await cargar()
 }
 
 // Carga masiva: crea de un solo click los 72 partidos oficiales de la fase
@@ -199,7 +127,7 @@ const cargarFixtureOficial = async () => {
             status: partido.status || 'Programado',
             bracketPosition: partido.bracketPosition !== undefined ? partido.bracketPosition : null,
           },
-          { permitirFechaPasada: true },
+          { permitirFechaPasada: true, omitirValidacionAlineacion: true },
         )
         creados++
       } catch (err) {
@@ -255,67 +183,7 @@ const formatearFecha = (ts: { toDate: () => Date }) =>
 
     <!-- Formulario de creación -->
     <Transition name="fade">
-      <form v-if="mostrarFormulario" class="match-form glass animate-slide-up" @submit.prevent="agregarPartido">
-        <div class="match-form__grid">
-          <div class="field">
-            <label class="field__label">Equipo local</label>
-            <select v-model="nuevoPartido.homeTeam" class="field__input" required :disabled="nombresEquiposRegistrados.length === 0">
-              <option value="" disabled>Selecciona un equipo</option>
-              <option v-for="n in nombresEquiposRegistrados" :key="n" :value="n">{{ n }}</option>
-            </select>
-          </div>
-          <div class="field">
-            <label class="field__label">Equipo visitante</label>
-            <select v-model="nuevoPartido.awayTeam" class="field__input" required :disabled="nombresEquiposRegistrados.length === 0">
-              <option value="" disabled>Selecciona un equipo</option>
-              <option v-for="n in nombresEquiposRegistrados" :key="n" :value="n">{{ n }}</option>
-            </select>
-          </div>
-          <p v-if="nombresEquiposRegistrados.length === 0" class="form-hint">
-            No hay selecciones registradas todavía. <NuxtLink to="/teams">Agrega una selección</NuxtLink> primero.
-          </p>
-          <div class="field">
-            <label class="field__label">Fase</label>
-            <select v-model="nuevoPartido.stage" class="field__input" required>
-              <option value="" disabled>Selecciona una fase</option>
-              <option v-for="f in FASES" :key="f" :value="f">{{ f }}</option>
-            </select>
-          </div>
-          <div v-if="nuevoPartido.stage === 'Fase de grupos'" class="field">
-            <label class="field__label">Grupo</label>
-            <select v-model="nuevoPartido.group" class="field__input" required>
-              <option value="" disabled>Selecciona un grupo</option>
-              <option v-for="g in GRUPOS" :key="g" :value="g">Grupo {{ g }}</option>
-            </select>
-          </div>
-          <div class="field">
-            <label class="field__label">Estadio</label>
-            <select v-model="nuevoPartido.stadium" class="field__input" required>
-              <option value="" disabled>Selecciona un estadio</option>
-              <option v-for="e in nombresEstadios" :key="e" :value="e">{{ e }}</option>
-            </select>
-          </div>
-          <div class="field">
-            <label class="field__label">Ciudad</label>
-            <input v-model="nuevoPartido.city" type="text" class="field__input" placeholder="Se completa automáticamente" readonly />
-          </div>
-          <div class="field">
-            <label class="field__label">Fecha y hora</label>
-            <input v-model="nuevoPartido.fecha" type="datetime-local" class="field__input" required />
-          </div>
-          <div class="field">
-            <label class="field__label">Estado</label>
-            <select v-model="nuevoPartido.status" class="field__input" required>
-              <option v-for="e in ESTADOS_PARTIDO" :key="e" :value="e">{{ e }}</option>
-            </select>
-          </div>
-        </div>
-        <p v-if="errorFormulario" class="form-error">{{ errorFormulario }}</p>
-
-        <button type="submit" class="save-btn" :disabled="creando">
-          {{ creando ? 'Guardando...' : 'Guardar partido' }}
-        </button>
-      </form>
+      <MatchForm v-if="mostrarFormulario" @created="partidoCreado" />
     </Transition>
 
     <!-- Búsqueda y filtros -->
@@ -443,35 +311,6 @@ const formatearFecha = (ts: { toDate: () => Date }) =>
   transform: translateY(-2px);
 }
 
-/* Form */
-.match-form {
-  padding: var(--space-xl);
-  border-radius: var(--radius-lg);
-  display: flex;
-  flex-direction: column;
-  gap: var(--space-lg);
-}
-
-.match-form__grid {
-  display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
-  gap: var(--space-md);
-}
-
-.field {
-  display: flex;
-  flex-direction: column;
-  gap: var(--space-sm);
-}
-
-.field__label {
-  font-size: 0.78rem;
-  font-weight: 600;
-  color: var(--text-secondary);
-  text-transform: uppercase;
-  letter-spacing: 0.05em;
-}
-
 .field__input {
   width: 100%;
   min-width: 0;
@@ -502,32 +341,6 @@ select.field__input {
 .form-error {
   color: #ff6b6b;
   font-size: 0.85rem;
-}
-
-.form-hint {
-  grid-column: 1 / -1;
-  font-size: 0.82rem;
-  color: var(--text-muted);
-}
-
-.form-hint a {
-  color: var(--text-gold);
-  text-decoration: underline;
-}
-
-.save-btn {
-  align-self: flex-start;
-  padding: 12px 24px;
-  border-radius: var(--radius-md);
-  background: var(--gold-gradient);
-  color: #0a0e1a;
-  font-weight: 700;
-  font-size: 0.9rem;
-}
-
-.save-btn:disabled {
-  opacity: 0.6;
-  cursor: not-allowed;
 }
 
 /* Filters */
