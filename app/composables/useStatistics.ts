@@ -118,10 +118,29 @@ export const useStatistics = () => {
     }
   }
 
+  // Devuelve un mapa playerId -> total de goles, sumando los "scorers" de
+  // todos los partidos finalizados. Se usa en las pantallas de plantilla
+  // (teams/[id]/players.vue y players/index.vue) para mostrar el campo
+  // "Goles" del jugador de forma automática y de solo lectura, sin
+  // duplicar el dato en el documento del jugador.
+  const obtenerGolesPorJugador = async (): Promise<Map<string, number>> => {
+    const q = query(collection($firestore, 'matches'), where('status', '==', 'Finalizado'))
+    const snap = await getDocs(q)
+    const mapa = new Map<string, number>()
+    for (const docSnap of snap.docs) {
+      const partido = docSnap.data() as Omit<Match, 'id'>
+      for (const goleador of partido.scorers ?? []) {
+        mapa.set(goleador.playerId, (mapa.get(goleador.playerId) ?? 0) + goleador.goals)
+      }
+    }
+    return mapa
+  }
+
   return {
     estadisticas,
     loading,
     error,
     calcularEstadisticas,
+    obtenerGolesPorJugador,
   }
 }

@@ -19,12 +19,16 @@ const {
 } = usePlayers()
 const { user } = useAuth()
 const { confirmar } = useConfirm()
+const { equipoTienePartidoEnVivo } = useMatches()
+const { obtenerGolesPorJugador } = useStatistics()
 
 const team = ref<Team | null>(null)
+const golesPorJugador = ref<Map<string, number>>(new Map())
 
 const cargar = () => {
   fetchTeamById(id).then((resultado) => { team.value = resultado })
   fetchPlayersByTeam(id)
+  obtenerGolesPorJugador().then((mapa) => { golesPorJugador.value = mapa })
 }
 
 onMounted(cargar)
@@ -168,21 +172,29 @@ const guardarEdicionJugador = async () => {
   }
 }
 
+const eliminandoJugador = ref(false)
 const errorEliminarJugador = ref('')
 
-const eliminarJugador = async (player: Player) => {
-  const mensaje = player.titular
-    ? `${player.name} es titular. ¿Eliminarlo igual de la plantilla?`
-    : '¿Eliminar este jugador de la plantilla?'
-  const confirmado = await confirmar(mensaje)
-  if (!confirmado) return
+const eliminarJugador = async (playerId: string) => {
   errorEliminarJugador.value = ''
+  eliminandoJugador.value = true
   try {
-    await deletePlayer(player.id)
+    // No se puede eliminar un jugador si su selección tiene un partido
+    // "En Vivo" en este momento
+    const jugando = await equipoTienePartidoEnVivo(id)
+    if (jugando) {
+      errorEliminarJugador.value = 'No se puede eliminar: esta selección tiene un partido en vivo ahora mismo.'
+      return
+    }
+
+    const confirmado = await confirmar('¿Eliminar este jugador de la plantilla?')
+    if (!confirmado) return
+    await deletePlayer(playerId)
     await fetchPlayersByTeam(id)
   } catch (err) {
     console.error('Error al eliminar jugador:', err)
-    errorEliminarJugador.value = mensajeError(err, 'No se pudo eliminar el jugador.')
+  } finally {
+    eliminandoJugador.value = false
   }
 }
 </script>
@@ -277,6 +289,8 @@ const eliminarJugador = async (player: Player) => {
     />
     <p v-if="errorEliminarJugador" class="form-error">{{ errorEliminarJugador }}</p>
 
+    <p v-if="errorEliminarJugador" class="form-error">{{ errorEliminarJugador }}</p>
+
     <!-- Estado: cargando -->
     <div v-if="cargandoJugadores" class="state-box">
       <div class="spinner" />
@@ -346,16 +360,22 @@ const eliminarJugador = async (player: Player) => {
           <div class="player-item__info">
             <p class="player-item__name">{{ player.name }}</p>
             <p class="player-item__meta">
-              {{ player.position }} · {{ player.club || 'Sin club' }}
-              <span v-if="player.titular" class="player-item__badge">Titular</span>
+              {{ player.position }} · {{ player.club || 'Sin club' }} ·
+              <span class="player-item__goals">⚽ {{ golesPorJugador.get(player.id) ?? 0 }} goles</span>
             </p>
           </div>
           <div v-if="user" class="player-item__actions">
             <button class="player-item__edit" title="Editar" @click="iniciarEdicionJugador(player)">✎</button>
-            <button class="player-item__delete" title="Eliminar" @click="eliminarJugador(player)">✕</button>
+            <button
+              class="player-item__delete"
+              title="Eliminar"
+              :disabled="eliminandoJugador"
+              @click="eliminarJugador(player.id)"
+            >✕</button>
           </div>
         </template>
       </li>
+
     </ul>
   </div>
 </template>
@@ -672,6 +692,11 @@ select.field__input {
   letter-spacing: 0.04em;
 }
 
+.player-item__goals {
+  color: var(--text-gold);
+  font-weight: 600;
+}
+
 .player-item__actions {
   display: flex;
   gap: 8px;
@@ -696,6 +721,11 @@ select.field__input {
 .player-item__delete:hover {
   color: #ff6b6b;
   background: rgba(255, 107, 107, 0.1);
+}
+
+.player-item__delete:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
 }
 
 .player-item__edit:hover {
