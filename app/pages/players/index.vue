@@ -1,7 +1,8 @@
 <script setup lang="ts">
 import { POSICIONES_JUGADOR } from '~/utils/worldCupData'
+import { CONVOCADOS_POR_SELECCION } from '~/utils/rosterData'
 
-const { players, loading, error, fetchAllPlayers } = usePlayers()
+const { players, loading, error, fetchAllPlayers, createPlayer } = usePlayers()
 const { teams, fetchTeams } = useTeams()
 const { obtenerGolesPorJugador } = useStatistics()
 
@@ -9,6 +10,7 @@ const golesPorJugador = ref<Map<string, number>>(new Map())
 
 const busqueda = ref('')
 const posicionFiltro = ref('')
+const equipoFiltro = ref('')
 
 const cargar = () => {
   fetchAllPlayers()
@@ -30,9 +32,91 @@ const jugadoresFiltrados = computed(() => {
       p.club.toLowerCase().includes(texto) ||
       (equipo?.name.toLowerCase().includes(texto) ?? false)
     const coincidePosicion = !posicionFiltro.value || p.position === posicionFiltro.value
-    return coincideTexto && coincidePosicion
+    const coincideEquipo = !equipoFiltro.value || p.teamId === equipoFiltro.value
+    return coincideTexto && coincidePosicion && coincideEquipo
   })
 })
+
+// Paginación del listado de jugadores
+const JUGADORES_POR_PAGINA = 16
+const paginaActual = ref(1)
+
+watch([busqueda, posicionFiltro, equipoFiltro], () => {
+  paginaActual.value = 1
+})
+
+const totalPaginas = computed(() =>
+  Math.max(1, Math.ceil(jugadoresFiltrados.value.length / JUGADORES_POR_PAGINA)),
+)
+
+watch(totalPaginas, (total) => {
+  if (paginaActual.value > total) paginaActual.value = total
+})
+
+const jugadoresPaginados = computed(() => {
+  const inicio = (paginaActual.value - 1) * JUGADORES_POR_PAGINA
+  return jugadoresFiltrados.value.slice(inicio, inicio + JUGADORES_POR_PAGINA)
+})
+
+// Carga masiva: crea los 26 convocados oficiales de cada selección que ya
+// exista en Firestore. Si un jugador no trae número, se le asigna el
+// siguiente disponible (reservando el 1 para porteros).
+const asignarNumeros = (jugadores: typeof CONVOCADOS_POR_SELECCION[string]) => {
+  const usados = new Set(jugadores.filter((j) => j.number).map((j) => j.number as number))
+  let siguiente = 2
+  return jugadores.map((j) => {
+    if (j.number) return j
+    if (j.position === 'Portero' && !usados.has(1)) {
+      usados.add(1)
+      return { ...j, number: 1 }
+    }
+    while (usados.has(siguiente)) siguiente++
+    usados.add(siguiente)
+    return { ...j, number: siguiente }
+  })
+}
+
+const cargandoConvocados = ref(false)
+const resultadoConvocados = ref('')
+
+const cargarConvocadosOficiales = async () => {
+  cargandoConvocados.value = true
+  resultadoConvocados.value = ''
+  let creados = 0
+  let omitidos = 0
+  let fallidos = 0
+  try {
+    for (const team of teams.value) {
+      const convocatoria = CONVOCADOS_POR_SELECCION[team.name]
+      if (!convocatoria) continue
+      const yaTienePlantilla = players.value.some((p) => p.teamId === team.id)
+      if (yaTienePlantilla) {
+        omitidos += convocatoria.length
+        continue
+      }
+      for (const jugador of asignarNumeros(convocatoria)) {
+        try {
+          await createPlayer({
+            teamId: team.id,
+            name: jugador.name,
+            number: jugador.number as number,
+            position: jugador.position,
+            club: jugador.club ?? 'Sin club',
+            titular: false,
+          })
+          creados++
+        } catch (err) {
+          console.error(`No se pudo crear ${jugador.name} (${team.name}):`, err)
+          fallidos++
+        }
+      }
+    }
+    await cargar()
+    resultadoConvocados.value = `Listo: ${creados} jugadores creados, ${omitidos} ya tenían plantilla${fallidos ? `, ${fallidos} fallaron` : ''}.`
+  } finally {
+    cargandoConvocados.value = false
+  }
+}
 </script>
 
 <template>
@@ -55,10 +139,23 @@ const jugadoresFiltrados = computed(() => {
         <option value="">Todas las posiciones</option>
         <option v-for="p in POSICIONES_JUGADOR" :key="p" :value="p">{{ p }}</option>
       </select>
+      <select v-model="equipoFiltro" class="field__input">
+        <option value="">Todas las selecciones</option>
+        <option v-for="t in teams" :key="t.id" :value="t.id">{{ t.name }}</option>
+      </select>
       <button class="btn-refetch" @click="cargar" :disabled="loading">
         Actualizar
       </button>
+      <button v-if="user" class="btn-refetch" :disabled="cargandoConvocados" @click="cargarConvocadosOficiales">
+        {{ cargandoConvocados ? 'Cargando...' : '⚡ Cargar convocados oficiales' }}
+      </button>
     </div>
+
+    <p v-if="resultadoConvocados" class="state-text">{{ resultadoConvocados }}</p>
+
+    <p v-if="!loading && !error" class="results-count">
+      {{ jugadoresFiltrados.length }} jugador{{ jugadoresFiltrados.length === 1 ? '' : 'es' }} en total
+    </p>
 
     <!-- Estado: cargando -->
     <div v-if="loading" class="state-box">
@@ -132,6 +229,11 @@ const jugadoresFiltrados = computed(() => {
   display: flex;
   gap: var(--space-md);
   flex-wrap: wrap;
+}
+
+.results-count {
+  color: var(--text-muted);
+  font-size: 0.85rem;
 }
 
 .filters__search {

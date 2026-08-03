@@ -19,6 +19,75 @@ export const CONFEDERACIONES = [
 // Grupos del formato de 48 selecciones (Mundial 2026): A a L
 export const GRUPOS = ['A', 'B', 'C', 'D', 'E', 'F', 'G', 'H', 'I', 'J', 'K', 'L'] as const
 
+// Grupo oficial de cada selección según el sorteo real del Mundial 2026
+// (5 de diciembre de 2025, Kennedy Center, Washington D.C.), ya con los
+// clasificados de repechaje (marzo 2026) incorporados.
+export const GRUPO_POR_SELECCION: Record<string, (typeof GRUPOS)[number]> = {
+  // Grupo A
+  México: 'A',
+  'Corea del Sur': 'A',
+  Sudáfrica: 'A',
+  'República Checa': 'A',
+  // Grupo B
+  Canadá: 'B',
+  Suiza: 'B',
+  Catar: 'B',
+  'Bosnia y Herzegovina': 'B',
+  // Grupo C
+  Brasil: 'C',
+  Marruecos: 'C',
+  Escocia: 'C',
+  Haití: 'C',
+  // Grupo D
+  'Estados Unidos': 'D',
+  Australia: 'D',
+  Paraguay: 'D',
+  Turquía: 'D',
+  // Grupo E
+  Alemania: 'E',
+  Ecuador: 'E',
+  'Costa de Marfil': 'E',
+  Curazao: 'E',
+  // Grupo F
+  'Países Bajos': 'F',
+  Japón: 'F',
+  Túnez: 'F',
+  Suecia: 'F',
+  'Ganador Playoff UEFA B': 'F',
+  // Grupo G
+  Bélgica: 'G',
+  Irán: 'G',
+  Egipto: 'G',
+  'Nueva Zelanda': 'G',
+  // Grupo H
+  España: 'H',
+  Uruguay: 'H',
+  'Arabia Saudita': 'H',
+  'Cabo Verde': 'H',
+  // Grupo I
+  Francia: 'I',
+  Senegal: 'I',
+  Noruega: 'I',
+  Irak: 'I',
+  'Ganador Playoff Intercontinental 2': 'I',
+  // Grupo J
+  Argentina: 'J',
+  Austria: 'J',
+  Argelia: 'J',
+  Jordania: 'J',
+  // Grupo K
+  Portugal: 'K',
+  Colombia: 'K',
+  Uzbekistán: 'K',
+  'RD del Congo': 'K',
+  'Ganador Playoff Intercontinental 1': 'K',
+  // Grupo L
+  Inglaterra: 'L',
+  Croacia: 'L',
+  Panamá: 'L',
+  Ghana: 'L',
+}
+
 export const POSICIONES_JUGADOR = ['Portero', 'Defensa', 'Mediocampista', 'Delantero'] as const
 
 // Clubes conocidos para el combo box de jugadores (no requiere saber de fútbol)
@@ -56,8 +125,190 @@ export const CLUBES_REFERENCIA = [
   'Otro / Sin club',
 ] as const
 
-// Las 48 selecciones que clasificaron realmente al Mundial 2026 (12 grupos x 4),
-// organizado por confederación según el reparto oficial de cupos.
+export const OTRO_ENTRENADOR = 'Otro / Escribir nombre'
+export const OTRO_NOMBRE_JUGADOR = 'Otro / Escribir nombre'
+
+// Entrenadores REALES de cada selección clasificada al Mundial 2026, según
+// medios especializados (mayo 2026). Las selecciones que NO clasificaron a
+// esta edición (Italia, Dinamarca, Polonia, Camerún, Costa Rica, Nigeria,
+// Jamaica) no tienen entrada aquí a propósito: no corresponde sugerir un
+// entrenador de un Mundial en el que ese equipo no participa; en el combo
+// caen directo a "Otro / Escribir nombre".
+export const ENTRENADORES_POR_SELECCION: Record<string, string> = {
+  Argentina: 'Lionel Scaloni',
+  Brasil: 'Carlo Ancelotti',
+  Uruguay: 'Marcelo Bielsa',
+  Colombia: 'Néstor Lorenzo',
+  Ecuador: 'Sebastián Beccacece',
+  Paraguay: 'Gustavo Alfaro',
+  España: 'Luis de la Fuente',
+  Francia: 'Didier Deschamps',
+  Alemania: 'Julian Nagelsmann',
+  Portugal: 'Roberto Martínez',
+  Inglaterra: 'Thomas Tuchel',
+  'Países Bajos': 'Ronald Koeman',
+  Bélgica: 'Rudi Garcia',
+  Croacia: 'Zlatko Dalić',
+  Suiza: 'Murat Yakin',
+  México: 'Javier Aguirre',
+  'Estados Unidos': 'Mauricio Pochettino',
+  Canadá: 'Jesse Marsch',
+  Panamá: 'Thomas Christiansen',
+  Marruecos: 'Walid Regragui',
+  Senegal: 'Pape Thiaw',
+  Ghana: 'Carlos Queiroz',
+  Egipto: 'Hossam Hassan',
+  Túnez: 'Sami Trabelsi',
+  Argelia: 'Vladimir Petković',
+  Japón: 'Hajime Moriyasu',
+  'Corea del Sur': 'Hong Myung-bo',
+  'Arabia Saudita': 'Hervé Renard',
+  Irán: 'Amir Ghalenoei',
+  Australia: 'Tony Popovic',
+  Catar: 'Luis García',
+  'Nueva Zelanda': 'Darren Bazeley',
+  Austria: 'Ralf Rangnick',
+  'Bosnia y Herzegovina': 'Sergej Barbarez',
+  Escocia: 'Steve Clarke',
+  Noruega: 'Ståle Solbakken',
+  'República Checa': 'Ivan Hašek',
+  Suecia: 'Jon Dahl Tomasson',
+  Turquía: 'Vincenzo Montella',
+  'Cabo Verde': 'Bubista',
+  'Costa de Marfil': 'Emerse Faé',
+  'RD del Congo': 'Sébastien Desabre',
+  Sudáfrica: 'Hugo Broos',
+  Irak: 'Graham Arnold',
+  Jordania: 'Hussein Ammouta',
+  Uzbekistán: 'Srečko Katanec',
+  Curazao: 'Dick Advocaat',
+  Haití: 'Sébastien Migné',
+  'Ganador Playoff UEFA B': 'Por definir',
+  'Ganador Playoff Intercontinental 1': 'Por definir',
+  'Ganador Playoff Intercontinental 2': 'Por definir',
+}
+
+// Ranking FIFA masculino aproximado (julio 2026, tras la final del Mundial)
+// de cada selección clasificada, según FIFA/prensa deportiva. Se usa solo
+// como valor inicial sugerido al cargar las selecciones oficiales: el campo
+// sigue siendo editable en el formulario.
+export const FIFA_RANKING_POR_SELECCION: Record<string, number> = {
+  España: 1,
+  Argentina: 2,
+  Francia: 3,
+  Inglaterra: 4,
+  Brasil: 5,
+  Marruecos: 6,
+  Portugal: 7,
+  Bélgica: 8,
+  'Países Bajos': 9,
+  México: 10,
+  Colombia: 11,
+  Alemania: 12,
+  Croacia: 13,
+  Suiza: 14,
+  'Estados Unidos': 16,
+  Japón: 17,
+  Senegal: 18,
+  Noruega: 19,
+  Uruguay: 20,
+  Irán: 22,
+  Austria: 23,
+  Egipto: 24,
+  Ecuador: 25,
+  Turquía: 27,
+  Australia: 28,
+  Argelia: 29,
+  Canadá: 30,
+  'Costa de Marfil': 31,
+  'Corea del Sur': 32,
+  Paraguay: 34,
+  Suecia: 37,
+  'RD del Congo': 41,
+  Escocia: 42,
+  Panamá: 44,
+  'República Checa': 48,
+  'Arabia Saudita': 60,
+  Túnez: 52,
+  Ghana: 54,
+  'Bosnia y Herzegovina': 56,
+  Catar: 58,
+  Uzbekistán: 62,
+  Sudáfrica: 65,
+  Irak: 68,
+  Jordania: 70,
+  'Cabo Verde': 72,
+  Curazao: 80,
+  Haití: 85,
+  'Nueva Zelanda': 95,
+  'Ganador Playoff UEFA B': 99,
+  'Ganador Playoff Intercontinental 1': 99,
+  'Ganador Playoff Intercontinental 2': 99,
+}
+
+// Lista plana (fallback mientras no se conoce la selección elegida)
+export const ENTRENADORES_REFERENCIA = [
+  ...new Set(Object.values(ENTRENADORES_POR_SELECCION)),
+] as const
+
+// Jugadores REALES de referencia (figuras conocidas) de cada selección
+// clasificada al Mundial 2026, según cobertura de prensa deportiva.
+export const NOMBRES_JUGADORES_POR_SELECCION: Record<string, readonly string[]> = {
+  Argentina: ['Lionel Messi', 'Julián Álvarez', 'Lautaro Martínez', 'Enzo Fernández', 'Rodrigo De Paul', 'Emiliano Martínez'],
+  Brasil: ['Vinícius Júnior', 'Neymar', 'Matheus Cunha', 'Raphinha', 'Gabriel Martinelli', 'Endrick'],
+  Uruguay: ['Federico Valverde', 'Rodrigo Bentancur', 'José María Giménez', 'Fernando Muslera', 'Manuel Ugarte'],
+  Colombia: ['James Rodríguez'],
+  Ecuador: ['Moisés Caicedo'],
+  Paraguay: ['Miguel Almirón', 'Antonio Sanabria'],
+  Francia: ['Kylian Mbappé'],
+  Portugal: ['Cristiano Ronaldo'],
+  Inglaterra: ['Jude Bellingham', 'Harry Kane'],
+  Croacia: ['Luka Modrić'],
+  'Países Bajos': ['Memphis Depay', 'Cody Gakpo', 'Donyell Malen', 'Virgil van Dijk', 'Frenkie de Jong'],
+  México: ['Guillermo Ochoa', 'Edson Álvarez', 'Raúl Jiménez', 'Santiago Giménez'],
+  'Estados Unidos': ['Christian Pulisic'],
+  Canadá: ['Stephen Eustáquio', 'Alistair Johnston'],
+  Panamá: ['Aníbal Godoy', 'José Fajardo', 'Cecilio Waterman'],
+  Marruecos: ['Yassine Bounou', 'Nayef Aguerd', 'Sofyan Amrabat', 'Achraf Hakimi'],
+  Senegal: ['Sadio Mané'],
+  Egipto: ['Mohamed Salah'],
+  Japón: ['Wataru Endo', 'Kaoru Mitoma', 'Daichi Kamada', 'Ao Tanaka', 'Daizen Maeda'],
+  'Corea del Sur': ['Son Heung-min', 'Lee Jae-sung', 'Hwang Hee-chan', 'Kim Min-jae'],
+  Australia: ['Mathew Leckie', 'Nestory Irankunda'],
+  Alemania: ['Jamal Musiala', 'Florian Wirtz', 'Kai Havertz', 'Joshua Kimmich', 'Manuel Neuer'],
+  España: ['Lamine Yamal', 'Pedri', 'Nico Williams', 'Álvaro Morata', 'Rodri'],
+  Bélgica: ['Kevin De Bruyne', 'Romelu Lukaku', 'Jérémy Doku'],
+  Austria: ['David Alaba', 'Marcel Sabitzer', 'Christoph Baumgartner'],
+  'Bosnia y Herzegovina': ['Edin Džeko'],
+  Escocia: ['Andy Robertson', 'Scott McTominay'],
+  Noruega: ['Erling Haaland', 'Martin Ødegaard'],
+  'República Checa': ['Patrik Schick'],
+  Suecia: ['Alexander Isak', 'Viktor Gyökeres'],
+  Suiza: ['Granit Xhaka', 'Manuel Akanji'],
+  Turquía: ['Arda Güler', 'Kenan Yıldız'],
+  Argelia: ['Riyad Mahrez'],
+  'Cabo Verde': ['Ryan Mendes'],
+  'Costa de Marfil': ['Sébastien Haller', 'Franck Kessié'],
+  Ghana: ['Mohammed Kudus', 'Thomas Partey'],
+  'RD del Congo': ['Chancel Mbemba'],
+  Sudáfrica: ['Percy Tau'],
+  Túnez: ['Ellyes Skhiri'],
+  'Arabia Saudita': ['Salem Al-Dawsari'],
+  Catar: ['Akram Afif'],
+  Irak: ['Ayman Hussein'],
+  Irán: ['Mehdi Taremi'],
+  Jordania: ['Musa Al-Taamari'],
+  Uzbekistán: ['Eldor Shomurodov'],
+  'Nueva Zelanda': ['Chris Wood'],
+  Curazao: ['Juninho Bacuna'],
+  Haití: ['Duckens Nazon'],
+}
+
+// Lista plana (fallback general, solo jugadores verificados de cualquier selección)
+export const NOMBRES_JUGADORES_REFERENCIA = [
+  ...new Set(Object.values(NOMBRES_JUGADORES_POR_SELECCION).flat()),
+] as const
+
 export const SELECCIONES_REFERENCIA: SeleccionRef[] = [
   // CONMEBOL (6)
   { name: 'Argentina', code: 'ar', confederation: 'CONMEBOL' },
@@ -84,6 +335,7 @@ export const SELECCIONES_REFERENCIA: SeleccionRef[] = [
   { name: 'Suecia', code: 'se', confederation: 'UEFA' },
   { name: 'Suiza', code: 'ch', confederation: 'UEFA' },
   { name: 'Turquía', code: 'tr', confederation: 'UEFA' },
+  { name: 'Ganador Playoff UEFA B', code: 'un', confederation: 'UEFA' },
 
   // CAF (10)
   { name: 'Argelia', code: 'dz', confederation: 'CAF' },
@@ -115,6 +367,8 @@ export const SELECCIONES_REFERENCIA: SeleccionRef[] = [
   { name: 'Haití', code: 'ht', confederation: 'CONCACAF' },
   { name: 'México', code: 'mx', confederation: 'CONCACAF' },
   { name: 'Panamá', code: 'pa', confederation: 'CONCACAF' },
+  { name: 'Ganador Playoff Intercontinental 1', code: 'un', confederation: 'CONCACAF' },
+  { name: 'Ganador Playoff Intercontinental 2', code: 'un', confederation: 'CONCACAF' },
 
   // OFC (1)
   { name: 'Nueva Zelanda', code: 'nz', confederation: 'OFC' },

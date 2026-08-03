@@ -5,7 +5,8 @@ import {
   onAuthStateChanged,
   type User
 } from 'firebase/auth'
-import { doc, setDoc, getDoc, serverTimestamp, arrayUnion, arrayRemove } from 'firebase/firestore'
+import { doc, setDoc, getDoc, collection, getDocs, query, where, serverTimestamp, arrayUnion, arrayRemove } from 'firebase/firestore'
+import { requerido, longitud } from '~/utils/validation'
 
 // Estructura del perfil guardado en Firestore (colección "users")
 export interface PerfilUsuario {
@@ -26,9 +27,8 @@ export interface PerfilUsuario {
 export const useAuth = () => {
   const { $firebaseAuth } = useNuxtApp()
   const { db: $firestore } = useFirestore()
-  const user = useState<User | null>('user', () => null)
-  const perfil = useState<PerfilUsuario | null>('perfil', () => null)
-  const cargandoPerfil = useState<boolean>('cargandoPerfil', () => false)
+  const store = useAuthStore()
+  const { user, perfil, cargandoPerfil, errorCampeon } = storeToRefs(store)
 
   const guardarUsuarioEnFirestore = async (usuario: User) => {
     const userRef = doc($firestore, 'users', usuario.uid)
@@ -84,6 +84,10 @@ export const useAuth = () => {
   // Permite editar nombre y/o selección favorita
   const actualizarPerfil = async (cambios: { nombre?: string; seleccionFavorita?: string }) => {
     if (!user.value) return
+    if (cambios.nombre !== undefined) {
+      requerido(cambios.nombre, 'El nombre')
+      longitud(cambios.nombre, 'El nombre', 2, 60)
+    }
     const userRef = doc($firestore, 'users', user.value.uid)
     await setDoc(userRef, cambios, { merge: true })
     // Refleja el cambio localmente sin necesidad de volver a leer Firestore
@@ -94,12 +98,16 @@ export const useAuth = () => {
 
   // Fija la predicción de campeón del torneo. Solo se puede elegir una vez:
   // si el usuario ya tiene un campeonElegido, la función no hace nada.
-  const errorCampeon = ref('')
   const elegirCampeon = async (equipo: string) => {
     errorCampeon.value = ''
     if (!user.value) return
     if (perfil.value?.campeonElegido) {
       errorCampeon.value = 'Ya elegiste tu campeón, no se puede cambiar.'
+      return
+    }
+    const existe = await getDocs(query(collection($firestore, 'teams'), where('name', '==', equipo)))
+    if (existe.empty) {
+      errorCampeon.value = 'Esa selección no existe.'
       return
     }
     const userRef = doc($firestore, 'users', user.value.uid)

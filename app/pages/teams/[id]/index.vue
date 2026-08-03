@@ -1,6 +1,7 @@
 <script setup lang="ts">
 import type { Team } from '~/composables/useTeams'
-import { CONFEDERACIONES, GRUPOS, nombresSelecciones, buscarSeleccionPorNombre, urlBanderaPorCodigo } from '~/utils/worldCupData'
+import { CONFEDERACIONES, GRUPOS, nombresSelecciones, buscarSeleccionPorNombre, urlBanderaPorCodigo, ENTRENADORES_POR_SELECCION, OTRO_ENTRENADOR } from '~/utils/worldCupData'
+import { mensajeError } from '~/utils/validation'
 
 const route = useRoute()
 const router = useRouter()
@@ -17,6 +18,8 @@ const loading = ref(false)
 const error = ref('')
 const editando = ref(false)
 const guardando = ref(false)
+const errorEdicion = ref('')
+const errorEliminar = ref('')
 
 const formulario = reactive({
   name: '',
@@ -25,6 +28,26 @@ const formulario = reactive({
   coach: '',
   confederation: '',
   fifaRanking: 1,
+})
+
+// Combo box de entrenador: muestra el entrenador REAL 2026 de la selección
+// elegida (si está clasificada y confirmado), más "Otro" para escribirlo a mano
+const cargado = ref(false)
+const entrenadorSeleccionado = ref('')
+const escribirEntrenadorPropio = computed(() => entrenadorSeleccionado.value === OTRO_ENTRENADOR)
+const entrenadoresDisponibles = computed(() => {
+  const real = ENTRENADORES_POR_SELECCION[formulario.name]
+  return real ? [real, OTRO_ENTRENADOR] : [OTRO_ENTRENADOR]
+})
+watch(entrenadorSeleccionado, (valor) => {
+  if (valor) formulario.coach = valor === OTRO_ENTRENADOR ? '' : valor
+})
+// Si el usuario cambia la selección (no la carga inicial), resetea el entrenador
+watch(() => formulario.name, () => {
+  if (cargado.value) {
+    entrenadorSeleccionado.value = ''
+    formulario.coach = ''
+  }
 })
 
 const cargar = async () => {
@@ -43,6 +66,10 @@ const cargar = async () => {
       formulario.coach = resultado.coach
       formulario.confederation = resultado.confederation
       formulario.fifaRanking = resultado.fifaRanking
+      entrenadorSeleccionado.value = entrenadoresDisponibles.value.includes(resultado.coach)
+        ? resultado.coach
+        : OTRO_ENTRENADOR
+      cargado.value = true
     }
   } catch {
     error.value = 'Ocurrió un error al cargar la selección.'
@@ -65,6 +92,7 @@ watch(() => formulario.name, (nombre) => {
 const guardarCambios = async () => {
   if (!team.value) return
   guardando.value = true
+  errorEdicion.value = ''
   try {
     await updateTeam(team.value.id, {
       ...formulario,
@@ -74,6 +102,7 @@ const guardarCambios = async () => {
     await cargar()
   } catch (err) {
     console.error('Error al actualizar selección:', err)
+    errorEdicion.value = mensajeError(err, 'No se pudo actualizar la selección.')
   } finally {
     guardando.value = false
   }
@@ -83,11 +112,13 @@ const eliminar = async () => {
   if (!team.value) return
   const confirmado = await confirmar(`¿Eliminar la selección ${team.value.name}?`)
   if (!confirmado) return
+  errorEliminar.value = ''
   try {
     await deleteTeam(team.value.id)
     router.push('/teams')
   } catch (err) {
     console.error('Error al eliminar selección:', err)
+    errorEliminar.value = mensajeError(err, 'No se pudo eliminar la selección.')
   }
 }
 </script>
@@ -152,6 +183,7 @@ const eliminar = async () => {
           <button class="btn-edit" @click="editando = true">Editar</button>
           <button class="btn-delete" @click="eliminar">Eliminar</button>
         </div>
+        <p v-if="errorEliminar" class="form-error">{{ errorEliminar }}</p>
       </template>
 
       <!-- Formulario de edición -->
@@ -176,7 +208,17 @@ const eliminar = async () => {
         </div>
         <div class="field">
           <label class="field__label">Entrenador</label>
-          <input v-model="formulario.coach" type="text" class="field__input" />
+          <select v-model="entrenadorSeleccionado" class="field__input">
+            <option value="" disabled>Selecciona un entrenador</option>
+            <option v-for="e in entrenadoresDisponibles" :key="e" :value="e">{{ e }}</option>
+          </select>
+          <input
+            v-if="escribirEntrenadorPropio"
+            v-model="formulario.coach"
+            type="text"
+            class="field__input"
+            placeholder="Escribe el nombre del entrenador"
+          />
         </div>
         <div class="field">
           <label class="field__label">Confederación</label>
@@ -189,6 +231,7 @@ const eliminar = async () => {
           <label class="field__label">Ranking FIFA</label>
           <input v-model.number="formulario.fifaRanking" type="number" min="1" class="field__input" />
         </div>
+        <p v-if="errorEdicion" class="form-error">{{ errorEdicion }}</p>
         <div class="edit-form__actions">
           <button type="submit" class="btn-edit" :disabled="guardando">
             {{ guardando ? 'Guardando...' : 'Guardar cambios' }}
@@ -199,15 +242,25 @@ const eliminar = async () => {
 
       <div class="divider" />
 
-      <!-- Enlace a la plantilla (ruta anidada /teams/[id]/players) -->
-      <NuxtLink :to="`/teams/${id}/players`" class="squad-link glass">
-        <span class="squad-link__icon">👕</span>
-        <div class="squad-link__text">
-          <p class="squad-link__title">Plantilla de jugadores</p>
-          <p class="squad-link__sub">Ver, agregar, editar y eliminar jugadores de {{ team.name }}</p>
-        </div>
-        <span class="squad-link__arrow">→</span>
-      </NuxtLink>
+      <!-- Enlaces a la plantilla y a la alineación (rutas anidadas /teams/[id]/players y /lineup) -->
+      <div class="squad-links">
+        <NuxtLink :to="`/teams/${id}/players`" class="squad-link glass">
+          <span class="squad-link__icon">👕</span>
+          <div class="squad-link__text">
+            <p class="squad-link__title">Plantilla de jugadores</p>
+            <p class="squad-link__sub">Ver, agregar, editar y eliminar jugadores de {{ team.name }}</p>
+          </div>
+          <span class="squad-link__arrow">→</span>
+        </NuxtLink>
+        <NuxtLink :to="`/teams/${id}/lineup`" class="squad-link glass">
+          <span class="squad-link__icon">⚽</span>
+          <div class="squad-link__text">
+            <p class="squad-link__title">Alineación</p>
+            <p class="squad-link__sub">Ver la formación titular y los suplentes en la cancha</p>
+          </div>
+          <span class="squad-link__arrow">→</span>
+        </NuxtLink>
+      </div>
     </div>
   </div>
 </template>
@@ -449,7 +502,13 @@ select.field__input {
   font-size: 0.88rem;
 }
 
-/* ── Enlace a la plantilla ─────────────────────────────────── */
+/* ── Enlaces a plantilla / alineación ─────────────────────────── */
+.squad-links {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-md);
+}
+
 .squad-link {
   display: flex;
   align-items: center;

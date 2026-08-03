@@ -73,9 +73,16 @@ export const useBracket = () => {
       if (tabla[2]) terceros.push(tabla[2])
     }
 
-    // Mejores 8 terceros: mismo criterio de desempate que la tabla de grupos
+    // Mejores 8 terceros (reglamento FIFA): puntos, diferencia de gol, goles a
+    // favor y, por último, ranking FIFA. No aplica head-to-head porque los
+    // terceros de distintos grupos nunca se enfrentaron entre sí.
     const mejoresTerceros = [...terceros]
-      .sort((a, b) => b.points - a.points || b.goalDifference - a.goalDifference || b.goalsFor - a.goalsFor)
+      .sort((a, b) =>
+        b.points - a.points
+        || b.goalDifference - a.goalDifference
+        || b.goalsFor - a.goalsFor
+        || a.fifaRanking - b.fifaRanking,
+      )
       .slice(0, 8)
 
     return { primeros, segundos, mejoresTerceros }
@@ -90,6 +97,18 @@ export const useBracket = () => {
     generando.value = true
     error.value = null
     try {
+      // No se puede armar el bracket si todavía quedan partidos de fase de
+      // grupos sin finalizar: la clasificación estaría incompleta.
+      const pendientes = await getDocs(query(
+        matchesCollection(),
+        where('stage', '==', 'Fase de grupos'),
+        where('status', '!=', 'Finalizado'),
+      ))
+      if (!pendientes.empty) {
+        error.value = `Todavía hay ${pendientes.size} partido(s) de fase de grupos sin finalizar.`
+        return
+      }
+
       const { primeros, segundos, mejoresTerceros } = await calcularClasificados()
       const clasificados = [...primeros, ...segundos, ...mejoresTerceros]
 

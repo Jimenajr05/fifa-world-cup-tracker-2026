@@ -226,18 +226,21 @@ if (import.meta.client) {
 .navbar__nav {
   display: flex;
   align-items: center;
-  gap: var(--space-xs);
+  gap: 2px;
+  flex-wrap: nowrap;
+  min-width: 0;
 }
 
 .navbar__link {
   display: flex;
   align-items: center;
   gap: 6px;
-  padding: 8px 14px;
+  padding: 8px 10px;
   border-radius: var(--radius-sm);
   font-size: 0.88rem;
   font-weight: 500;
   color: var(--text-secondary);
+  white-space: nowrap;
   transition: color var(--transition-fast), background var(--transition-fast);
 }
 
