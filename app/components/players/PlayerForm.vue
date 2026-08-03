@@ -1,30 +1,39 @@
+// Formulario para crear un nuevo jugador
 <script setup lang="ts">
+// Tipo de datos para crear un jugador
 import type { NewPlayer } from '~/composables/usePlayers'
+// Catálogos de posiciones, clubes y nombres reales por selección
 import { POSICIONES_JUGADOR, CLUBES_REFERENCIA, NOMBRES_JUGADORES_POR_SELECCION, OTRO_NOMBRE_JUGADOR as OTRO_NOMBRE } from '~/utils/worldCupData'
+// Extrae un mensaje de error amigable
 import { mensajeError } from '~/utils/validation'
 
+// Equipo al que pertenecerá el nuevo jugador
 const props = defineProps<{
   teamId: string
   teamName: string
 }>()
 
+// Notifica al padre cuando se crea el jugador o se cancela el formulario
 const emit = defineEmits<{
   (e: 'created'): void
   (e: 'cancel'): void
 }>()
 
+// Acción de creación de jugadores
 const { createPlayer } = usePlayers()
 
-// Nombres REALES convocados 2026 de esta selección (si hay datos verificados);
-// si no hay datos para esta selección, solo queda "Otro" para escribirlo a mano
+// Nombres reales disponibles para la selección, más la opción de escribir uno propio
 const nombresDisponibles = computed(() => {
   const reales = NOMBRES_JUGADORES_POR_SELECCION[props.teamName]
   return reales ? [...reales, OTRO_NOMBRE] : [OTRO_NOMBRE]
 })
 
+// Indica si se está guardando el jugador
 const creando = ref(false)
+// Mensaje de error del formulario
 const errorFormulario = ref('')
 
+// Datos del nuevo jugador (sin teamId, que se agrega al enviar)
 const nuevoJugador = reactive<Omit<NewPlayer, 'teamId'>>({
   name: '',
   number: 1,
@@ -33,13 +42,16 @@ const nuevoJugador = reactive<Omit<NewPlayer, 'teamId'>>({
   titular: false,
 })
 
-// Combo box de nombre: si eligen "Otro", se habilita un input de texto libre
+// Nombre elegido en el select (puede ser el real o "otro")
 const nombreSeleccionado = ref('')
+// Indica si se debe mostrar el campo para escribir un nombre distinto al de la lista
 const escribirNombrePropio = computed(() => nombreSeleccionado.value === OTRO_NOMBRE)
+// Sincroniza el nombre del jugador con el elegido en el select
 watch(nombreSeleccionado, (valor) => {
   nuevoJugador.name = valor === OTRO_NOMBRE ? '' : valor
 })
 
+// Restablece el formulario a sus valores iniciales
 const resetFormulario = () => {
   nuevoJugador.name = ''
   nuevoJugador.number = 1
@@ -50,6 +62,7 @@ const resetFormulario = () => {
   errorFormulario.value = ''
 }
 
+// Valida campos obligatorios y crea el jugador, notificando al padre si tiene éxito
 const agregarJugador = async () => {
   if (!nuevoJugador.name || !nuevoJugador.position || !nuevoJugador.club) {
     errorFormulario.value = 'Nombre, posición y club son obligatorios.'
@@ -84,14 +97,8 @@ const agregarJugador = async () => {
           <option value="" disabled>Selecciona un nombre</option>
           <option v-for="n in nombresDisponibles" :key="n" :value="n">{{ n }}</option>
         </select>
-        <input
-          v-if="escribirNombrePropio"
-          v-model="nuevoJugador.name"
-          type="text"
-          class="field__input"
-          placeholder="Escribe el nombre del jugador"
-          required
-        />
+        <input v-if="escribirNombrePropio" v-model="nuevoJugador.name" type="text" class="field__input"
+          placeholder="Escribe el nombre del jugador" required />
       </div>
       <div class="field">
         <label class="field__label">Número</label>

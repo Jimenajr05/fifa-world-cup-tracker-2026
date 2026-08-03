@@ -1,19 +1,23 @@
+// Componente de paginación reutilizable, con botones de página y elipsis
 <script setup lang="ts">
+// Página actual y total de páginas, controladas por el componente padre
 const props = defineProps<{
   paginaActual: number
   totalPaginas: number
 }>()
 
+// Emite el cambio de página hacia el padre (v-model:paginaActual)
 const emit = defineEmits<{
   (e: 'update:paginaActual', valor: number): void
 }>()
 
+// Navega a una página válida y distinta de la actual
 const ir = (pagina: number) => {
   if (pagina < 1 || pagina > props.totalPaginas || pagina === props.paginaActual) return
   emit('update:paginaActual', pagina)
 }
 
-// Muestra un rango acotado de números de página alrededor de la actual
+// Lista de páginas a mostrar (primera, última, rango cercano a la actual y elipsis)
 const paginasVisibles = computed(() => {
   const total = props.totalPaginas
   const actual = props.paginaActual
@@ -39,18 +43,10 @@ const paginasVisibles = computed(() => {
       ‹ Anterior
     </button>
 
-    <span
-      v-for="(p, i) in paginasVisibles"
-      :key="`${p}-${i}`"
-      class="pagination__item"
-    >
+    <span v-for="(p, i) in paginasVisibles" :key="`${p}-${i}`" class="pagination__item">
       <span v-if="p === '...'" class="pagination__ellipsis">…</span>
-      <button
-        v-else
-        class="pagination__page"
-        :class="{ 'pagination__page--active': p === paginaActual }"
-        @click="ir(p as number)"
-      >
+      <button v-else class="pagination__page" :class="{ 'pagination__page--active': p === paginaActual }"
+        @click="ir(p as number)">
         {{ p }}
       </button>
     </span>

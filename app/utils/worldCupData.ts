@@ -1,12 +1,11 @@
-// Datos de referencia para los combo box del módulo de Equipos y Jugadores.
-// No requieren estar en Firestore: son catálogos fijos para facilitar la carga de datos.
-
+// Catálogos para el módulo de Selecciones 
 export interface SeleccionRef {
   name: string
-  code: string // código ISO usado para la bandera (flagcdn.com)
+  code: string
   confederation: string
 }
 
+// Catálogos para el módulo de Confederaciones
 export const CONFEDERACIONES = [
   'CONMEBOL',
   'UEFA',
@@ -16,12 +15,10 @@ export const CONFEDERACIONES = [
   'OFC',
 ] as const
 
-// Grupos del formato de 48 selecciones (Mundial 2026): A a L
+// Catálogos para el módulo de Grupos y Selecciones
 export const GRUPOS = ['A', 'B', 'C', 'D', 'E', 'F', 'G', 'H', 'I', 'J', 'K', 'L'] as const
 
-// Grupo oficial de cada selección según el sorteo real del Mundial 2026
-// (5 de diciembre de 2025, Kennedy Center, Washington D.C.), ya con los
-// clasificados de repechaje (marzo 2026) incorporados.
+// Catálogos para el módulo de Grupos y Selecciones
 export const GRUPO_POR_SELECCION: Record<string, (typeof GRUPOS)[number]> = {
   // Grupo A
   México: 'A',
@@ -88,9 +85,10 @@ export const GRUPO_POR_SELECCION: Record<string, (typeof GRUPOS)[number]> = {
   Ghana: 'L',
 }
 
+// Catálogos para el módulo de Jugadores
 export const POSICIONES_JUGADOR = ['Portero', 'Defensa', 'Mediocampista', 'Delantero'] as const
 
-// Clubes conocidos para el combo box de jugadores (no requiere saber de fútbol)
+// Clubes conocidos para el combo box de jugadores 
 export const CLUBES_REFERENCIA = [
   'Real Madrid',
   'FC Barcelona',
@@ -125,15 +123,11 @@ export const CLUBES_REFERENCIA = [
   'Otro / Sin club',
 ] as const
 
+// Catálogos para el módulo de Entrenadores y Jugadores
 export const OTRO_ENTRENADOR = 'Otro / Escribir nombre'
 export const OTRO_NOMBRE_JUGADOR = 'Otro / Escribir nombre'
 
-// Entrenadores REALES de cada selección clasificada al Mundial 2026, según
-// medios especializados (mayo 2026). Las selecciones que NO clasificaron a
-// esta edición (Italia, Dinamarca, Polonia, Camerún, Costa Rica, Nigeria,
-// Jamaica) no tienen entrada aquí a propósito: no corresponde sugerir un
-// entrenador de un Mundial en el que ese equipo no participa; en el combo
-// caen directo a "Otro / Escribir nombre".
+// Catálogos para el módulo de Entrenadores
 export const ENTRENADORES_POR_SELECCION: Record<string, string> = {
   Argentina: 'Lionel Scaloni',
   Brasil: 'Carlo Ancelotti',
@@ -188,10 +182,7 @@ export const ENTRENADORES_POR_SELECCION: Record<string, string> = {
   'Ganador Playoff Intercontinental 2': 'Por definir',
 }
 
-// Ranking FIFA masculino aproximado (julio 2026, tras la final del Mundial)
-// de cada selección clasificada, según FIFA/prensa deportiva. Se usa solo
-// como valor inicial sugerido al cargar las selecciones oficiales: el campo
-// sigue siendo editable en el formulario.
+// Catálogos para el módulo de Ranking FIFA
 export const FIFA_RANKING_POR_SELECCION: Record<string, number> = {
   España: 1,
   Argentina: 2,
@@ -246,13 +237,12 @@ export const FIFA_RANKING_POR_SELECCION: Record<string, number> = {
   'Ganador Playoff Intercontinental 2': 99,
 }
 
-// Lista plana (fallback mientras no se conoce la selección elegida)
+// Catálogos para el módulo de Entrenadores
 export const ENTRENADORES_REFERENCIA = [
   ...new Set(Object.values(ENTRENADORES_POR_SELECCION)),
 ] as const
 
-// Jugadores REALES de referencia (figuras conocidas) de cada selección
-// clasificada al Mundial 2026, según cobertura de prensa deportiva.
+// Catálogos para el módulo de Jugadores
 export const NOMBRES_JUGADORES_POR_SELECCION: Record<string, readonly string[]> = {
   Argentina: ['Lionel Messi', 'Julián Álvarez', 'Lautaro Martínez', 'Enzo Fernández', 'Rodrigo De Paul', 'Emiliano Martínez'],
   Brasil: ['Vinícius Júnior', 'Neymar', 'Matheus Cunha', 'Raphinha', 'Gabriel Martinelli', 'Endrick'],
@@ -304,11 +294,12 @@ export const NOMBRES_JUGADORES_POR_SELECCION: Record<string, readonly string[]> 
   Haití: ['Duckens Nazon'],
 }
 
-// Lista plana (fallback general, solo jugadores verificados de cualquier selección)
+// Catálogos para el módulo de Jugadores
 export const NOMBRES_JUGADORES_REFERENCIA = [
   ...new Set(Object.values(NOMBRES_JUGADORES_POR_SELECCION).flat()),
 ] as const
 
+// Catálogos para el módulo de Entrenadores
 export const SELECCIONES_REFERENCIA: SeleccionRef[] = [
   // CONMEBOL (6)
   { name: 'Argentina', code: 'ar', confederation: 'CONMEBOL' },
@@ -374,15 +365,17 @@ export const SELECCIONES_REFERENCIA: SeleccionRef[] = [
   { name: 'Nueva Zelanda', code: 'nz', confederation: 'OFC' },
 ]
 
+// Catálogos para el módulo de Entrenadores
 export const nombresSelecciones = SELECCIONES_REFERENCIA.map((s) => s.name)
 
+// Catálogos para el módulo de Entrenadores
 export const buscarSeleccionPorNombre = (nombre: string) =>
   SELECCIONES_REFERENCIA.find((s) => s.name === nombre)
 
+// Catálogos para el módulo de Entrenadores
 export const urlBanderaPorCodigo = (code: string) => `https://flagcdn.com/w160/${code}.png`
 
-// ── Catálogos para el módulo de Partidos ────────────────────────
-
+// Catálogos para el módulo de Entrenadores
 export interface EstadioRef {
   name: string
   city: string
@@ -408,11 +401,14 @@ export const ESTADIOS_REFERENCIA: EstadioRef[] = [
   { name: 'Lumen Field', city: 'Seattle' },
 ]
 
+// Catálogos para el módulo de Estadios
 export const nombresEstadios = ESTADIOS_REFERENCIA.map((e) => e.name)
 
+// Catálogos para el módulo de Estadios
 export const buscarEstadioPorNombre = (nombre: string) =>
   ESTADIOS_REFERENCIA.find((e) => e.name === nombre)
 
+// Catálogos para el módulo de Fases y Estados de Partido
 export const FASES = [
   'Fase de grupos',
   'Dieciseisavos',
@@ -423,4 +419,5 @@ export const FASES = [
   'Final',
 ] as const
 
+// Catálogos para el módulo de Fases y Estados de Partido
 export const ESTADOS_PARTIDO = ['Programado', 'En Vivo', 'Finalizado'] as const

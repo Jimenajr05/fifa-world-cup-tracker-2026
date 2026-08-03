@@ -1,3 +1,5 @@
+// Composable para gestión de selecciones (equipos): CRUD y validaciones de grupo/plantilla/calendario
+// Lectura/escritura de documentos y consultas en Firestore
 import {
   collection,
   doc,
@@ -10,10 +12,12 @@ import {
   where,
   orderBy,
 } from 'firebase/firestore'
+// Catálogos de confederaciones y grupos válidos
 import { CONFEDERACIONES, GRUPOS } from '~/utils/worldCupData'
+// Validaciones de campos de formulario
 import { ValidationError, requerido, longitud, enteroEnRango, enLista } from '~/utils/validation'
 
-// Estructura de una selección en Firestore (colección "teams")
+// Forma de un documento de selección (equipo) en Firestore
 export interface Team {
   id: string
   name: string
@@ -24,21 +28,30 @@ export interface Team {
   fifaRanking: number
 }
 
+// Datos de un equipo antes de tener id (para crear/actualizar)
 export type NewTeam = Omit<Team, 'id'>
 
+// Cupo máximo de selecciones por grupo
 const MAX_EQUIPOS_POR_GRUPO = 4
 
+// Composable para gestión de selecciones: CRUD y validaciones de grupo/plantilla/calendario
 export const useTeams = () => {
   const { db: $firestore } = useFirestore()
+  // Lista de equipos cargados
   const teams = useState<Team[]>('teams', () => [])
+  // Indica si se están cargando equipos
   const loading = useState<boolean>('teamsLoading', () => false)
+  // Mensaje de error al cargar equipos
   const error = useState<string | null>('teamsError', () => null)
 
+  // Referencia a la colección 'teams'
   const teamsCollection = () => collection($firestore, 'teams')
+  // Referencia a la colección 'players'
   const playersCollection = () => collection($firestore, 'players')
+  // Referencia a la colección 'matches'
   const matchesCollection = () => collection($firestore, 'matches')
 
-  // Trae todas las selecciones, opcionalmente filtradas por grupo o confederación
+  // Carga equipos aplicando filtros opcionales de grupo y confederación, ordenados por ranking FIFA
   const fetchTeams = async (filters?: { group?: string; confederation?: string }) => {
     loading.value = true
     error.value = null
@@ -58,6 +71,7 @@ export const useTeams = () => {
     }
   }
 
+  // Obtiene un equipo por su id
   const fetchTeamById = async (id: string): Promise<Team | null> => {
     try {
       const snap = await getDoc(doc($firestore, 'teams', id))
@@ -69,7 +83,7 @@ export const useTeams = () => {
     }
   }
 
-  // ── Reglas de negocio ──────────────────────────────────────────
+  // Valida los campos de un equipo (nombre, bandera, entrenador, grupo, confederación, ranking)
   const validarDatosEquipo = (data: NewTeam) => {
     requerido(data.name, 'El nombre')
     longitud(data.name, 'El nombre', 2, 60)
@@ -83,12 +97,14 @@ export const useTeams = () => {
     enteroEnRango(Number(data.fifaRanking), 'El ranking FIFA', 1, 210)
   }
 
+  // Verifica si ya existe una selección con el mismo nombre
   const nombreDuplicado = async (name: string, excludeId?: string) => {
     const q = query(teamsCollection(), where('name', '==', name.trim()))
     const snap = await getDocs(q)
     return snap.docs.some((d) => d.id !== excludeId)
   }
 
+  // Verifica si un grupo ya alcanzó el cupo máximo de selecciones
   const cupoDeGrupoLleno = async (group: string, excludeId?: string) => {
     const q = query(teamsCollection(), where('group', '==', group))
     const snap = await getDocs(q)
@@ -96,13 +112,13 @@ export const useTeams = () => {
     return ocupantes.length >= MAX_EQUIPOS_POR_GRUPO
   }
 
+  // Verifica si el equipo tiene jugadores registrados en su plantilla
   const tieneJugadores = async (teamId: string) => {
     const snap = await getDocs(query(playersCollection(), where('teamId', '==', teamId)))
     return !snap.empty
   }
 
-  // Los partidos antiguos pueden no tener homeTeamId/awayTeamId poblados,
-  // así que además se comprueba por nombre de equipo (homeTeam/awayTeam).
+  // Verifica si el equipo tiene partidos asociados (por id o por nombre)
   const tienePartidos = async (teamId: string, teamName?: string) => {
     const consultas = [
       getDocs(query(matchesCollection(), where('homeTeamId', '==', teamId))),
@@ -118,6 +134,7 @@ export const useTeams = () => {
     return resultados.some((snap) => !snap.empty)
   }
 
+  // Crea una selección validando datos, nombre único y cupo del grupo
   const createTeam = async (data: NewTeam) => {
     validarDatosEquipo(data)
     if (await nombreDuplicado(data.name)) {
@@ -130,6 +147,7 @@ export const useTeams = () => {
     return ref.id
   }
 
+  // Actualiza una selección validando datos, nombre único y reglas al cambiar de grupo
   const updateTeam = async (id: string, data: Partial<NewTeam>) => {
     const actual = await fetchTeamById(id)
     if (!actual) throw new ValidationError('La selección que intentas editar ya no existe.')
@@ -152,6 +170,7 @@ export const useTeams = () => {
     await updateDoc(doc($firestore, 'teams', id), data)
   }
 
+  // Elimina una selección si no tiene jugadores ni partidos asociados
   const deleteTeam = async (id: string) => {
     const actual = await fetchTeamById(id)
     if (await tieneJugadores(id)) {
@@ -163,6 +182,7 @@ export const useTeams = () => {
     await deleteDoc(doc($firestore, 'teams', id))
   }
 
+  // API pública del composable
   return {
     teams,
     loading,

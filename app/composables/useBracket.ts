@@ -1,3 +1,5 @@
+// Composable para la gestión del bracket de eliminatorias del mundial
+// Consultas y escritura de documentos en Firestore
 import {
   collection,
   doc,
@@ -8,14 +10,14 @@ import {
   where,
   Timestamp,
 } from 'firebase/firestore'
+// Lista de grupos del mundial
 import { GRUPOS } from '~/utils/worldCupData'
+// Tipos de partido
 import type { Match, NewMatch } from './useMatches'
+// Tabla de posiciones por grupo
 import { useStandings, type StandingRow } from './useStandings'
 
-// Orden de las rondas eliminatorias. El número indica el orden de avance
-// (0 = ronda inicial de 32, y así sucesivamente). "Tercer lugar" comparte
-// ronda con la Final mas no alimenta a nadie: se arma aparte con los
-// perdedores de Semifinal.
+// Orden de las rondas eliminatorias
 export const RONDAS = [
   'Dieciseisavos',
   'Octavos',
@@ -24,9 +26,10 @@ export const RONDAS = [
   'Final',
 ] as const
 
+// Tipo derivado de las rondas válidas
 export type Ronda = (typeof RONDAS)[number]
 
-// Nombre de la siguiente ronda dentro del bracket ("Final" no tiene siguiente)
+// Devuelve la ronda siguiente a la indicada, o null si es la última
 const siguienteRonda = (ronda: Ronda): Ronda | null => {
   const idx = RONDAS.indexOf(ronda)
   if (idx === -1 || idx === RONDAS.length - 1) return null
@@ -34,48 +37,48 @@ const siguienteRonda = (ronda: Ronda): Ronda | null => {
   return siguiente ?? null
 }
 
+// Composable del bracket de eliminatorias: generación y avance de rondas
 export const useBracket = () => {
   const { db: $firestore } = useFirestore()
   const { fetchStandings } = useStandings()
 
+  // Estado global: si se está generando el bracket
   const generando = useState<boolean>('bracketGenerando', () => false)
+  // Estado global: mensaje de error del bracket
   const error = useState<string | null>('bracketError', () => null)
 
+  // Referencia a la colección 'matches'
   const matchesCollection = () => collection($firestore, 'matches')
 
-  // Trae todos los partidos de una ronda de eliminatoria, ordenados por
-  // bracketPosition, para poder emparejar consecutivos (0-1, 2-3, ...)
+  // Obtiene los partidos de una ronda, ordenados por posición de bracket
   const fetchRonda = async (round: Ronda): Promise<Match[]> => {
     const q = query(
       matchesCollection(),
       where('stage', '==', round),
     )
+    // Se obtienen los documentos y se mapean a objetos Match, ordenados por bracketPosition
     const snap = await getDocs(q)
     return snap.docs
       .map((d) => ({ id: d.id, ...(d.data() as Omit<Match, 'id'>) }))
       .sort((a, b) => (a.bracketPosition ?? 0) - (b.bracketPosition ?? 0))
   }
 
-  // Calcula los 32 clasificados a Dieciseisavos: 1° y 2° de cada grupo
-  // (24 equipos) + los 8 mejores terceros lugares entre los 12 grupos.
+  // Calcula primeros, segundos y mejores terceros de todos los grupos
   const calcularClasificados = async () => {
     const primeros: StandingRow[] = []
     const segundos: StandingRow[] = []
     const terceros: StandingRow[] = []
 
+    // Para cada grupo, obtiene la tabla de posiciones y extrae los primeros, segundos y terceros
     for (const grupo of GRUPOS) {
       await fetchStandings(grupo)
-      // fetchStandings deja el resultado en el useState "standings";
-      // lo leemos de inmediato para no pisar el valor con la siguiente iteración
       const tabla = useState<StandingRow[]>('standings').value
       if (tabla[0]) primeros.push(tabla[0])
       if (tabla[1]) segundos.push(tabla[1])
       if (tabla[2]) terceros.push(tabla[2])
     }
 
-    // Mejores 8 terceros (reglamento FIFA): puntos, diferencia de gol, goles a
-    // favor y, por último, ranking FIFA. No aplica head-to-head porque los
-    // terceros de distintos grupos nunca se enfrentaron entre sí.
+    // Ordena los terceros por puntos, diferencia de goles, goles a favor y ranking FIFA, y toma los 8 mejores
     const mejoresTerceros = [...terceros]
       .sort((a, b) =>
         b.points - a.points
@@ -88,17 +91,13 @@ export const useBracket = () => {
     return { primeros, segundos, mejoresTerceros }
   }
 
-  // Genera los 16 partidos de Dieciseisavos a partir de la fase de grupos.
-  // Sembrado simple: clasificados directos (1°s y 2°s) ordenados por puntos
-  // se enfrentan contra los mejores terceros y entre sí en un patrón 1 vs 32,
-  // 2 vs 31, etc. Es una siembra simplificada (no replica el sorteo real de
-  // la FIFA), pero mantiene el bracket balanceado y 100% derivado de datos.
+  // Genera los partidos de Dieciseisavos a partir de los clasificados de grupos
   const generarDieciseisavos = async () => {
     generando.value = true
     error.value = null
     try {
-      // No se puede armar el bracket si todavía quedan partidos de fase de
-      // grupos sin finalizar: la clasificación estaría incompleta.
+
+      // Verifica que no haya partidos de fase de grupos pendientes
       const pendientes = await getDocs(query(
         matchesCollection(),
         where('stage', '==', 'Fase de grupos'),
@@ -109,29 +108,32 @@ export const useBracket = () => {
         return
       }
 
+      // Calcula los equipos clasificados de grupos
       const { primeros, segundos, mejoresTerceros } = await calcularClasificados()
+      // Combina los primeros, segundos y mejores terceros en un solo array de 32 equipos
       const clasificados = [...primeros, ...segundos, ...mejoresTerceros]
 
+      // Verifica que haya 32 equipos clasificados 
       if (clasificados.length < 32) {
         error.value = `Aún faltan resultados de fase de grupos: solo hay ${clasificados.length}/32 clasificados.`
         return
       }
 
-      // Evita duplicar el bracket si ya se generó antes
+      // Verifica que no se hayan generado los Dieciseisavos previamente
       const yaExiste = await fetchRonda('Dieciseisavos')
       if (yaExiste.length > 0) {
         error.value = 'Los Dieciseisavos ya fueron generados.'
         return
       }
 
+      // Genera los 16 partidos de Dieciseisavos: el primero del grupo A vs el segundo del grupo B, etc.
       const total = clasificados.length
       for (let i = 0; i < total / 2; i++) {
         const local = clasificados[i]
         const visitante = clasificados[total - 1 - i]
-        // Con noUncheckedIndexedAccess, TS no sabe que estos índices siempre
-        // existen dentro del rango del ciclo; esta guarda lo confirma.
         if (!local || !visitante) continue
 
+        // Crea un nuevo partido de Dieciseisavos con los equipos local y visitante
         const nuevo: NewMatch = {
           homeTeam: local.teamName,
           awayTeam: visitante.teamName,
@@ -156,9 +158,7 @@ export const useBracket = () => {
     }
   }
 
-  // Al finalizar un partido de eliminatoria, determina el ganador y lo
-  // coloca automáticamente en el partido correspondiente de la siguiente
-  // ronda (creándolo si aún no existe).
+  // Avanza al ganador de un partido a la siguiente ronda (y perdedor de semifinal a tercer lugar)
   const avanzarGanador = async (match: Match) => {
     if (match.homeScore === null || match.awayScore === null) return
     if (match.homeScore === match.awayScore) {
@@ -166,34 +166,41 @@ export const useBracket = () => {
       return
     }
 
+    // Determina la ronda siguiente, el ganador y la posición en el bracket
     const siguiente = siguienteRonda(match.stage as Ronda)
+    // Determina el ganador y la posición en el bracket
     const ganador = match.homeScore > match.awayScore ? match.homeTeam : match.awayTeam
+    // Determina la posición actual en el bracket y la posición en la siguiente ronda
     const posicionActual = match.bracketPosition ?? 0
+    // Calcula la posición en la siguiente ronda y si el ganador será local o visitante
     const posicionSiguiente = Math.floor(posicionActual / 2)
+    // Determina si el ganador será local o visitante en la siguiente ronda
     const esLocalEnSiguiente = posicionActual % 2 === 0
 
-    // Tercer lugar: se arma con los perdedores de Semifinal (posiciones 0 y 1),
-    // no forma parte del avance normal del bracket.
+    // Si es semifinal, coloca al perdedor en el partido de tercer lugar
     if (match.stage === 'Semifinal') {
       const perdedor = match.homeScore > match.awayScore ? match.awayTeam : match.homeTeam
       await colocarEnRonda('Tercer lugar' as Ronda, 0, perdedor, posicionActual === 0)
     }
 
+    // Si hay una ronda siguiente, coloca al ganador en la posición correspondiente
     if (!siguiente) return
     await colocarEnRonda(siguiente, posicionSiguiente, ganador, esLocalEnSiguiente)
   }
 
-  // Coloca un equipo (local o visitante) en el partido de bracketPosition
-  // indicado dentro de una ronda; crea el partido si todavía no existe.
+  // Ubica un equipo en la posición del bracket de una ronda (crea o actualiza el partido)
   const colocarEnRonda = async (
     ronda: Ronda,
     bracketPosition: number,
     equipo: string,
     esLocal: boolean,
   ) => {
+    // Obtiene los partidos de la ronda y busca si ya existe un partido en esa posición
     const partidos = await fetchRonda(ronda)
+    // Busca un partido existente en la posición de bracket indicada
     const existente = partidos.find((p) => p.bracketPosition === bracketPosition)
 
+    // Si el partido ya existe, actualiza el equipo local o visitante según corresponda
     if (existente) {
       await updateDoc(doc($firestore, 'matches', existente.id), {
         [esLocal ? 'homeTeam' : 'awayTeam']: equipo,
@@ -217,6 +224,7 @@ export const useBracket = () => {
     }
   }
 
+  // API pública del composable
   return {
     generando,
     error,

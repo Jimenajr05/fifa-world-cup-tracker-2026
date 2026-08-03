@@ -1,6 +1,9 @@
+// Permite al usuario ingresar y guardar su predicción para un partido específico.
 <script setup lang="ts">
+// Extrae un mensaje de error amigable
 import { mensajeError } from '~/utils/validation'
 
+// Datos del partido y predicción previa (si existe) para precargar el formulario
 const props = defineProps<{
   matchId: string
   homeTeam: string
@@ -10,21 +13,31 @@ const props = defineProps<{
   yaExistePrediccion: boolean
 }>()
 
+// Notifica al padre cuando se guarda la predicción
 const emit = defineEmits<{
   (e: 'saved'): void
 }>()
 
+// Usuario autenticado
 const { user } = useAuth()
+// Acción para crear/actualizar una predicción
 const { guardarPrediccion } = usePredictions()
 
+// Indica si se está guardando la predicción
 const guardando = ref(false)
+// Mensaje de error del formulario
 const errorFormulario = ref('')
+// Controla la visibilidad del mensaje de éxito temporal
 const mensajeExito = ref(false)
 
+// Marcador predicho para el equipo local
 const homePrediction = ref<number | null>(props.initialHomePrediction)
+// Marcador predicho para el equipo visitante
 const awayPrediction = ref<number | null>(props.initialAwayPrediction)
+// Indica si ya existía una predicción previa (cambia el texto del botón)
 const yaExiste = ref(props.yaExistePrediccion)
 
+// Valida los marcadores y guarda la predicción del usuario
 const guardar = async () => {
   errorFormulario.value = ''
   if (!user.value) return

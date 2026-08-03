@@ -1,21 +1,32 @@
+// Página de detalle de un partido, mostrando información detallada y la alineación de ambos equipos
 <script setup lang="ts">
+// Tipo de Timestamp de Firestore
 import type { Timestamp } from 'firebase/firestore'
+// Tipo de partido
 import type { Match } from '~/composables/useMatches'
 
+// Ruta y router, para leer el id del partido y navegar tras eliminar
 const route = useRoute()
 const router = useRouter()
+// Carga de partido por id y eliminación
 const { fetchMatchById, deleteMatch } = useMatches()
+// Carga de equipos (usada para resolver nombres de equipo)
 const { fetchTeams } = useTeams()
+// Carga de jugadores por equipo, para mostrar las alineaciones
 const { fetchPlayersByTeam, players: jugadoresCargados } = usePlayers()
 
-// Alineaciones que se muestran en la vista de detalle (no en edición).
-// Se cargan bajo demanda, la primera vez que se abre cada botón "Alineación".
+// Controla si se muestra la alineación del equipo local
 const mostrarAlineacionLocal = ref(false)
+// Controla si se muestra la alineación del equipo visitante
 const mostrarAlineacionVisitante = ref(false)
+// Alineación cargada del equipo local
 const alineacionLocal = ref<{ id: string; name: string; number: number; position: string }[]>([])
+// Alineación cargada del equipo visitante
 const alineacionVisitante = ref<{ id: string; name: string; number: number; position: string }[]>([])
+// Indica si una alineación se está cargando
 const cargandoAlineacion = ref(false)
 
+// Etiquetas en plural para agrupar la alineación por posición
 const PLURAL_POSICION_ALINEACION: Record<string, string> = {
   Portero: 'Porteros',
   Defensa: 'Defensas',
@@ -23,6 +34,7 @@ const PLURAL_POSICION_ALINEACION: Record<string, string> = {
   Delantero: 'Delanteros',
 }
 
+// Agrupa una alineación por posición y ordena cada grupo por número de camiseta
 const agruparAlineacion = (jugadores: { id: string; name: string; number: number; position: string }[]) => {
   return Object.entries(PLURAL_POSICION_ALINEACION).map(([posicion, etiqueta]) => ({
     posicion,
@@ -31,9 +43,12 @@ const agruparAlineacion = (jugadores: { id: string; name: string; number: number
   })).filter((grupo) => grupo.jugadores.length > 0)
 }
 
+// Alineación local agrupada por posición
 const alineacionLocalAgrupada = computed(() => agruparAlineacion(alineacionLocal.value))
+// Alineación visitante agrupada por posición
 const alineacionVisitanteAgrupada = computed(() => agruparAlineacion(alineacionVisitante.value))
 
+// Muestra/oculta la alineación de un lado, cargándola de Firestore la primera vez que se abre
 const alternarAlineacion = async (lado: 'local' | 'visitante') => {
   if (!match.value) return
 
@@ -55,17 +70,26 @@ const alternarAlineacion = async (lado: 'local' | 'visitante') => {
     }
   }
 }
+// Usuario, perfil (para favoritos) y acción de alternar partido favorito
 const { user, perfil, alternarPartidoFavorito } = useAuth()
+// Diálogo de confirmación para eliminar
 const { confirmar } = useConfirm()
 
+// Id del partido, tomado de la URL
 const id = route.params.id as string
 
+// Partido cargado
 const match = ref<Match | null>(null)
+// Indica si el partido actual está en los favoritos del usuario
 const esFavorito = computed(() => !!match.value && (perfil.value?.partidosFavoritos.includes(match.value.id) ?? false))
+// Indica si el partido se está cargando
 const loading = ref(false)
+// Mensaje de error al cargar el partido
 const error = ref('')
+// Controla si se muestra el formulario de edición
 const editando = ref(false)
 
+// Carga el partido por id
 const cargar = async () => {
   loading.value = true
   error.value = ''
@@ -89,13 +113,16 @@ onMounted(() => {
   fetchTeams()
 })
 
+// Oculta el formulario de edición y recarga el partido
 const partidoGuardado = async () => {
   editando.value = false
   await cargar()
 }
 
+// Mensaje de error al eliminar el partido
 const errorEliminar = ref('')
 
+// Confirma y elimina el partido, luego navega de vuelta al listado
 const eliminar = async () => {
   if (!match.value) return
   const confirmado = await confirmar(`¿Eliminar el partido ${match.value.homeTeam} vs ${match.value.awayTeam}?`)
@@ -110,6 +137,7 @@ const eliminar = async () => {
   }
 }
 
+// Formatea un Timestamp de Firestore como fecha y hora completa en español
 const formatearFecha = (ts: Timestamp) =>
   ts.toDate().toLocaleString('es', { day: '2-digit', month: 'long', year: 'numeric', hour: '2-digit', minute: '2-digit' })
 </script>
@@ -118,24 +146,22 @@ const formatearFecha = (ts: Timestamp) =>
   <div class="match-detail animate-fade-in">
     <NuxtLink to="/matches" class="back-link">← Volver a partidos</NuxtLink>
 
-    <!-- Estado: cargando -->
     <div v-if="loading" class="state-box">
       <div class="spinner" />
       <p class="state-text">Cargando partido...</p>
     </div>
 
-    <!-- Estado: error -->
     <div v-else-if="error" class="state-box">
       <p class="state-text">{{ error }}</p>
       <button class="btn-refetch" @click="cargar">Reintentar</button>
     </div>
 
-    <!-- Contenido -->
     <div v-else-if="match" class="match-card-detail glass-strong animate-slide-up">
       <template v-if="!editando">
         <div class="match-detail__header">
           <span class="badge" :class="`badge--${match.status.replace(' ', '').toLowerCase()}`">{{ match.status }}</span>
-          <span class="match-detail__stage">{{ match.stage }}<template v-if="match.group"> · Grupo {{ match.group }}</template></span>
+          <span class="match-detail__stage">{{ match.stage }}<template v-if="match.group"> · Grupo {{ match.group
+              }}</template></span>
         </div>
 
         <div class="match-detail__scoreboard">
@@ -158,7 +184,6 @@ const formatearFecha = (ts: Timestamp) =>
           </div>
         </div>
 
-        <!-- Paneles de alineación -->
         <div v-if="mostrarAlineacionLocal || mostrarAlineacionVisitante" class="lineups">
           <div v-if="mostrarAlineacionLocal" class="lineup-panel glass">
             <p class="lineup-panel__title">{{ match.homeTeam }}</p>
@@ -211,11 +236,8 @@ const formatearFecha = (ts: Timestamp) =>
         </dl>
 
         <div v-if="user" class="match-detail__actions">
-          <button
-            class="btn-favorite"
-            :class="{ 'btn-favorite--activo': esFavorito }"
-            @click="alternarPartidoFavorito(match.id)"
-          >
+          <button class="btn-favorite" :class="{ 'btn-favorite--activo': esFavorito }"
+            @click="alternarPartidoFavorito(match.id)">
             {{ esFavorito ? '★ En favoritos' : '☆ Agregar a favoritos' }}
           </button>
           <button class="btn-edit" @click="editando = true">Editar</button>
@@ -224,7 +246,6 @@ const formatearFecha = (ts: Timestamp) =>
         <p v-if="errorEliminar" class="form-error">{{ errorEliminar }}</p>
       </template>
 
-      <!-- Formulario de edición -->
       <MatchEditForm v-else :match="match" @saved="partidoGuardado" @cancel="editando = false" />
     </div>
   </div>

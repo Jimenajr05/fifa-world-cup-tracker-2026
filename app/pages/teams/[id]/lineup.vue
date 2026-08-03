@@ -1,13 +1,22 @@
+// Página de alineación de un equipo, mostrando titulares en la cancha y suplentes en la banca, con posibilidad de editar/mover jugadores si hay usuario autenticado
 <script setup lang="ts">
+// Tipo de equipo
 import type { Team } from '~/composables/useTeams'
+// Tipo de jugador
 import type { Player } from '~/composables/usePlayers'
+// Nombres reales por selección, para el select de nombre de jugador
 import { NOMBRES_JUGADORES_POR_SELECCION, OTRO_NOMBRE_JUGADOR as OTRO_NOMBRE } from '~/utils/worldCupData'
+// Extrae un mensaje de error amigable
 import { mensajeError } from '~/utils/validation'
 
+// Ruta actual, para leer el id del equipo
 const route = useRoute()
+// Id del equipo, tomado de la URL
 const id = route.params.id as string
 
+// Carga de equipo por id
 const { fetchTeamById } = useTeams()
+// Jugadores del equipo, estado de carga y acciones de actualizar/eliminar
 const {
   players,
   loading: cargandoJugadores,
@@ -16,11 +25,15 @@ const {
   updatePlayer,
   deletePlayer,
 } = usePlayers()
+// Usuario autenticado (controla si se puede editar la alineación)
 const { user } = useAuth()
+// Diálogo de confirmación para eliminar
 const { confirmar } = useConfirm()
 
+// Equipo cargado
 const team = ref<Team | null>(null)
 
+// Carga el equipo y sus jugadores
 const cargar = () => {
   fetchTeamById(id).then((resultado) => { team.value = resultado })
   fetchPlayersByTeam(id)
@@ -28,19 +41,20 @@ const cargar = () => {
 
 onMounted(cargar)
 
-// Nombres REALES convocados 2026 de esta selección (si hay datos verificados);
-// si no hay datos para esta selección, solo queda "Otro" para escribirlo a mano
+// Nombres reales disponibles para la selección, más la opción de escribir uno propio
 const nombresDisponibles = computed(() => {
   const reales = NOMBRES_JUGADORES_POR_SELECCION[team.value?.name ?? '']
   return reales ? [...reales, OTRO_NOMBRE] : [OTRO_NOMBRE]
 })
 
-// ── Titulares en la cancha, resto en el banco de suplentes ──
+// Jugadores marcados como titulares
 const titulares = computed(() => players.value.filter((p) => p.titular))
+// Jugadores suplentes (no titulares)
 const suplentes = computed(() => players.value.filter((p) => !p.titular))
+// Titulares de una posición específica, para dibujar cada línea de la cancha
 const porPosicion = (pos: string) => titulares.value.filter((p) => p.position === pos)
 
-// Aviso no bloqueante: una alineación real necesita 11 titulares con 1 portero
+// Mensaje de aviso si la formación titular está incompleta o sin portero
 const avisoFormacion = computed(() => {
   if (players.value.length === 0) return ''
   if (titulares.value.length === 0) return 'Todavía no marcaste ningún jugador como titular.'
@@ -49,27 +63,33 @@ const avisoFormacion = computed(() => {
   return ''
 })
 
-// ── Edición / eliminación al hacer clic sobre un jugador ─────
+// Id del jugador seleccionado para editar/mover (null si ninguno)
 const edicionJugadorId = ref<string | null>(null)
+// Indica si se está guardando un cambio de titularidad
 const guardandoEdicionJugador = ref(false)
+// Mensaje de error al editar/mover un jugador
 const errorEdicionJugador = ref('')
 
+// Selecciona un jugador para editarlo (solo si hay usuario autenticado)
 const seleccionarJugador = (player: Player) => {
   if (!user.value) return
   edicionJugadorId.value = player.id
   errorEdicionJugador.value = ''
 }
 
+// Cancela la edición en curso
 const cancelarEdicionJugador = () => {
   edicionJugadorId.value = null
   errorEdicionJugador.value = ''
 }
 
+// Sale del modo edición y recarga la plantilla tras guardar cambios
 const jugadorEditado = async () => {
   edicionJugadorId.value = null
   await fetchPlayersByTeam(id)
 }
 
+// Envía a un titular a la banca de suplentes
 const quitarDeTitulares = async (player: Player) => {
   guardandoEdicionJugador.value = true
   errorEdicionJugador.value = ''
@@ -91,6 +111,7 @@ const quitarDeTitulares = async (player: Player) => {
   }
 }
 
+// Confirma y elimina un jugador de la plantilla (avisando si es titular)
 const eliminarJugador = async (player: Player) => {
   const mensaje = player.titular
     ? `${player.name} es titular. ¿Eliminarlo igual de la plantilla?`
@@ -110,7 +131,8 @@ const eliminarJugador = async (player: Player) => {
 
 <template>
   <div class="lineup-page animate-fade-in">
-    <NuxtLink :to="`/teams/${id}/players`" class="back-link">← Volver a la plantilla de {{ team?.name ?? '...' }}</NuxtLink>
+    <NuxtLink :to="`/teams/${id}/players`" class="back-link">← Volver a la plantilla de {{ team?.name ?? '...' }}
+    </NuxtLink>
 
     <header class="lineup-header animate-slide-up">
       <img v-if="team?.flag" :src="team.flag" :alt="team.name" class="lineup-header__flag" />
@@ -121,27 +143,22 @@ const eliminarJugador = async (player: Player) => {
 
     <p v-if="avisoFormacion" class="form-hint">⚠ {{ avisoFormacion }}</p>
 
-    <!-- Estado: cargando -->
     <div v-if="cargandoJugadores" class="state-box">
       <div class="spinner" />
       <p class="state-text">Cargando alineación...</p>
     </div>
 
-    <!-- Estado: error -->
     <div v-else-if="errorJugadores" class="state-box">
       <p class="state-text">{{ errorJugadores }}</p>
       <button class="btn-refetch" @click="cargar">Reintentar</button>
     </div>
 
-    <!-- Estado: vacío -->
     <div v-else-if="players.length === 0" class="state-box">
       <p class="state-text">Esta selección aún no tiene jugadores registrados.</p>
       <NuxtLink :to="`/teams/${id}/players`" class="btn-refetch">Agregar jugadores</NuxtLink>
     </div>
 
-    <!-- Alineación -->
     <div v-else class="lineup animate-slide-up delay-1">
-      <!-- Suplentes -->
       <aside class="bench">
         <h2 class="bench__title">Suplentes</h2>
         <p v-if="suplentes.length === 0" class="bench__empty">Sin suplentes.</p>
@@ -149,17 +166,12 @@ const eliminarJugador = async (player: Player) => {
           <li v-for="player in suplentes" :key="player.id" class="bench-card">
             <template v-if="edicionJugadorId === player.id">
               <div class="bench-edit-form">
-                <PlayerEditForm
-                  :player="player"
-                  :nombres-disponibles="nombresDisponibles"
-                  show-delete
-                  @saved="jugadorEditado"
-                  @cancel="cancelarEdicionJugador"
-                  @delete="eliminarJugador(player)"
-                />
+                <PlayerEditForm :player="player" :nombres-disponibles="nombresDisponibles" show-delete
+                  @saved="jugadorEditado" @cancel="cancelarEdicionJugador" @delete="eliminarJugador(player)" />
               </div>
             </template>
-            <button v-else type="button" class="bench-card__button" :class="{ 'bench-card__button--static': !user }" @click="seleccionarJugador(player)">
+            <button v-else type="button" class="bench-card__button" :class="{ 'bench-card__button--static': !user }"
+              @click="seleccionarJugador(player)">
               <span class="bench-card__avatar">👤</span>
               <span class="bench-card__info">
                 <span class="bench-card__name">{{ player.name }}</span>
@@ -171,7 +183,6 @@ const eliminarJugador = async (player: Player) => {
         </ul>
       </aside>
 
-      <!-- Cancha -->
       <div class="pitch-wrap">
         <div class="pitch">
           <div class="pitch__lines" />
@@ -180,16 +191,17 @@ const eliminarJugador = async (player: Player) => {
               <template v-if="edicionJugadorId === player.id">
                 <div class="jersey-actions">
                   <button type="button" class="icon-btn" title="Cerrar" @click="cancelarEdicionJugador">✕</button>
-                  <button type="button" class="icon-btn icon-btn--gold" title="Enviar a la banca" @click="quitarDeTitulares(player)">⬇</button>
-                  <button type="button" class="icon-btn icon-btn--danger" title="Eliminar" @click="eliminarJugador(player)">🗑</button>
+                  <button type="button" class="icon-btn icon-btn--gold" title="Enviar a la banca"
+                    @click="quitarDeTitulares(player)">⬇</button>
+                  <button type="button" class="icon-btn icon-btn--danger" title="Eliminar"
+                    @click="eliminarJugador(player)">🗑</button>
                 </div>
                 <p v-if="errorEdicionJugador" class="form-error jersey-actions__error">{{ errorEdicionJugador }}</p>
               </template>
-              <button v-else type="button" class="jersey__button" :class="{ 'jersey__button--static': !user }" @click="seleccionarJugador(player)">
-                <span
-                  class="jersey__shirt"
-                  :style="team?.flag ? { backgroundImage: `url(${team.flag})` } : undefined"
-                />
+              <button v-else type="button" class="jersey__button" :class="{ 'jersey__button--static': !user }"
+                @click="seleccionarJugador(player)">
+                <span class="jersey__shirt"
+                  :style="team?.flag ? { backgroundImage: `url(${team.flag})` } : undefined" />
                 <span class="jersey__number">{{ player.number }}</span>
                 <span class="jersey__name">{{ player.name }}</span>
               </button>
@@ -296,7 +308,6 @@ const eliminarJugador = async (player: Player) => {
   border: 1px solid var(--border-glass);
 }
 
-/* ── Alineación: suplentes + cancha ─────────────────────────── */
 .lineup {
   display: grid;
   grid-template-columns: 260px 1fr;
@@ -404,7 +415,6 @@ const eliminarJugador = async (player: Player) => {
   flex-shrink: 0;
 }
 
-/* Cancha */
 .pitch-wrap {
   border-radius: var(--radius-lg);
   overflow: hidden;
@@ -418,13 +428,11 @@ const eliminarJugador = async (player: Player) => {
   min-height: 560px;
   border-radius: var(--radius-lg);
   background:
-    repeating-linear-gradient(
-      180deg,
+    repeating-linear-gradient(180deg,
       rgba(255, 255, 255, 0.03) 0,
       rgba(255, 255, 255, 0.03) 60px,
       transparent 60px,
-      transparent 120px
-    ),
+      transparent 120px),
     linear-gradient(180deg, #1e6b34, #14501f 55%, #103f19);
   display: flex;
   flex-direction: column;
@@ -497,11 +505,9 @@ const eliminarJugador = async (player: Player) => {
   width: 48px;
   height: 48px;
   background: var(--gold-gradient) center / cover no-repeat;
-  clip-path: polygon(
-    31% 0%, 0% 24%, 10% 42%, 23% 33%,
-    23% 100%, 77% 100%, 77% 33%, 90% 42%,
-    100% 24%, 69% 0%, 59% 16%, 41% 16%
-  );
+  clip-path: polygon(31% 0%, 0% 24%, 10% 42%, 23% 33%,
+      23% 100%, 77% 100%, 77% 33%, 90% 42%,
+      100% 24%, 69% 0%, 59% 16%, 41% 16%);
   filter: drop-shadow(0 3px 6px rgba(0, 0, 0, 0.45));
   transition: transform var(--transition-fast);
   outline: 1px solid rgba(255, 255, 255, 0.25);

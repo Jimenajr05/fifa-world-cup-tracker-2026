@@ -1,18 +1,27 @@
+// Componente de formulario para crear un nuevo equipo
 <script setup lang="ts">
+// Tipo de datos para crear un equipo
 import type { NewTeam } from '~/composables/useTeams'
+// Catálogos y utilidades para autocompletar datos de la selección elegida
 import { CONFEDERACIONES, GRUPOS, GRUPO_POR_SELECCION, nombresSelecciones, buscarSeleccionPorNombre, urlBanderaPorCodigo, ENTRENADORES_POR_SELECCION, OTRO_ENTRENADOR } from '~/utils/worldCupData'
+// Extrae un mensaje de error amigable
 import { mensajeError } from '~/utils/validation'
 
+// Notifica al padre cuando se crea un equipo exitosamente
 const emit = defineEmits<{
   (e: 'created'): void
 }>()
 
+// Acción de creación de equipos
 const { createTeam } = useTeams()
 
 
+// Indica si se está guardando el equipo
 const creando = ref(false)
+// Mensaje de error del formulario
 const errorFormulario = ref('')
 
+// Datos del nuevo equipo a crear
 const nuevoEquipo = reactive<NewTeam>({
   name: '',
   group: '',
@@ -22,25 +31,26 @@ const nuevoEquipo = reactive<NewTeam>({
   fifaRanking: 1,
 })
 
-// Combo box de entrenador: muestra el entrenador REAL 2026 de la selección
-// elegida (si está clasificada y confirmado), más "Otro" para escribirlo a mano
+// Entrenador elegido en el select (puede ser el real o "otro")
 const entrenadorSeleccionado = ref('')
+// Indica si se debe mostrar el campo para escribir un entrenador distinto al oficial
 const escribirEntrenadorPropio = computed(() => entrenadorSeleccionado.value === OTRO_ENTRENADOR)
+// Opciones de entrenador disponibles según la selección elegida
 const entrenadoresDisponibles = computed(() => {
   const real = ENTRENADORES_POR_SELECCION[nuevoEquipo.name]
   return real ? [real, OTRO_ENTRENADOR] : [OTRO_ENTRENADOR]
 })
+// Sincroniza el campo coach con el entrenador elegido en el select
 watch(entrenadorSeleccionado, (valor) => {
   nuevoEquipo.coach = valor === OTRO_ENTRENADOR ? '' : valor
 })
-// Si cambia la selección elegida y el entrenador ya no corresponde, se resetea
+// Reinicia la selección de entrenador cuando cambia la selección de equipo
 watch(() => nuevoEquipo.name, () => {
   entrenadorSeleccionado.value = ''
   nuevoEquipo.coach = ''
 })
 
-// Al elegir el nombre en el combo box, autocompleta bandera, confederación
-// y el grupo oficial del sorteo del Mundial 2026 (el usuario puede cambiarlo)
+// Autocompleta bandera, confederación y grupo oficial al elegir una selección
 watch(() => nuevoEquipo.name, (nombre) => {
   const seleccion = buscarSeleccionPorNombre(nombre)
   if (seleccion) {
@@ -53,6 +63,7 @@ watch(() => nuevoEquipo.name, (nombre) => {
   }
 })
 
+// Restablece el formulario a sus valores iniciales
 const resetFormulario = () => {
   nuevoEquipo.name = ''
   nuevoEquipo.group = ''
@@ -64,6 +75,7 @@ const resetFormulario = () => {
   errorFormulario.value = ''
 }
 
+// Valida campos obligatorios y crea el equipo, notificando al padre si tiene éxito
 const agregarEquipo = async () => {
   if (!nuevoEquipo.name || !nuevoEquipo.group) {
     errorFormulario.value = 'El nombre y el grupo son obligatorios.'
@@ -83,10 +95,6 @@ const agregarEquipo = async () => {
   }
 }
 
-// Permite reemplazar la bandera autocompletada por una imagen propia,
-// subida a Firebase Storage (recurso multimedia del equipo)
-// Custom flag upload removed per project guidelines (Firebase Storage not allowed).
-      // Users can set the flag URL manually if needed.
 </script>
 
 <template>
@@ -108,21 +116,18 @@ const agregarEquipo = async () => {
       </div>
       <div class="field">
         <label class="field__label">Bandera</label>
-        <input v-model="nuevoEquipo.flag" type="text" class="field__input" placeholder="Se completa automáticamente" readonly />
+        <input v-model="nuevoEquipo.flag" type="text" class="field__input" placeholder="Se completa automáticamente"
+          readonly />
       </div>
       <div class="field">
         <label class="field__label">Entrenador</label>
         <select v-model="entrenadorSeleccionado" class="field__input" :disabled="!nuevoEquipo.name">
-          <option value="" disabled>{{ nuevoEquipo.name ? 'Selecciona un entrenador' : 'Primero elige la selección' }}</option>
+          <option value="" disabled>{{ nuevoEquipo.name ? 'Selecciona un entrenador' : 'Primero elige la selección' }}
+          </option>
           <option v-for="e in entrenadoresDisponibles" :key="e" :value="e">{{ e }}</option>
         </select>
-        <input
-          v-if="escribirEntrenadorPropio"
-          v-model="nuevoEquipo.coach"
-          type="text"
-          class="field__input"
-          placeholder="Escribe el nombre del entrenador"
-        />
+        <input v-if="escribirEntrenadorPropio" v-model="nuevoEquipo.coach" type="text" class="field__input"
+          placeholder="Escribe el nombre del entrenador" />
       </div>
       <div class="field">
         <label class="field__label">Confederación</label>

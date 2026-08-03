@@ -1,16 +1,27 @@
+// Página de favoritos del usuario, mostrando sus selecciones y partidos favoritos, con opción de quitar de favoritos
 <script setup lang="ts">
+// Tipo de equipo
 import type { Team } from '~/composables/useTeams'
+// Tipo de partido
 import type { Match } from '~/composables/useMatches'
 
+// Usuario, perfil (ids de favoritos) y acciones para quitar de favoritos
 const { user, perfil, alternarEquipoFavorito, alternarPartidoFavorito } = useAuth()
+// Carga de equipo por id
 const { fetchTeamById } = useTeams()
+// Carga de partido por id
 const { fetchMatchById } = useMatches()
 
+// Equipos favoritos, resueltos a partir de los ids guardados en el perfil
 const equiposFavoritos = ref<Team[]>([])
+// Partidos favoritos, resueltos a partir de los ids guardados en el perfil
 const partidosFavoritos = ref<Match[]>([])
+// Indica si los favoritos se están cargando
 const loading = ref(false)
+// Mensaje de error al cargar los favoritos
 const error = ref('')
 
+// Carga los equipos y partidos favoritos del usuario a partir de sus ids
 const cargar = async () => {
   if (!user.value || !perfil.value) return
   loading.value = true
@@ -29,19 +40,23 @@ const cargar = async () => {
 }
 
 onMounted(cargar)
+// Recarga si cambia la cantidad de equipos o partidos favoritos
 watch(() => perfil.value?.equiposFavoritos.length, cargar)
 watch(() => perfil.value?.partidosFavoritos.length, cargar)
 
+// Quita un equipo de favoritos y recarga la lista
 const quitarEquipo = async (teamId: string) => {
   await alternarEquipoFavorito(teamId)
   await cargar()
 }
 
+// Quita un partido de favoritos y recarga la lista
 const quitarPartido = async (matchId: string) => {
   await alternarPartidoFavorito(matchId)
   await cargar()
 }
 
+// Formatea un Timestamp de Firestore como fecha y hora en español
 const formatearFecha = (ts: { toDate: () => Date }) =>
   ts.toDate().toLocaleString('es', { day: '2-digit', month: 'short', year: 'numeric', hour: '2-digit', minute: '2-digit' })
 </script>
@@ -56,30 +71,27 @@ const formatearFecha = (ts: { toDate: () => Date }) =>
       </h1>
     </header>
 
-    <!-- Estado: no logueado -->
     <div v-if="!user" class="state-box">
       <p class="state-text">Inicia sesión para ver tus favoritos.</p>
     </div>
 
-    <!-- Estado: cargando -->
     <div v-else-if="loading" class="state-box">
       <div class="spinner" />
       <p class="state-text">Cargando favoritos...</p>
     </div>
 
-    <!-- Estado: error -->
     <div v-else-if="error" class="state-box">
       <p class="state-text">{{ error }}</p>
       <button class="btn-refetch" @click="cargar">Reintentar</button>
     </div>
 
     <template v-else>
-      <!-- Equipos favoritos -->
       <section class="favorites-section animate-slide-up delay-1">
         <h2 class="favorites-section__title">Selecciones favoritas</h2>
         <div v-if="equiposFavoritos.length === 0" class="state-box state-box--compact">
           <p class="state-text">
-            No has guardado ninguna selección. Ve a <NuxtLink to="/teams">Selecciones</NuxtLink> y toca "Agregar a favoritos".
+            No has guardado ninguna selección. Ve a <NuxtLink to="/teams">Selecciones</NuxtLink> y toca "Agregar a
+            favoritos".
           </p>
         </div>
         <div v-else class="favorites-grid">
@@ -88,17 +100,18 @@ const formatearFecha = (ts: { toDate: () => Date }) =>
               <span class="favorite-card__name">{{ equipo.name }}</span>
               <span class="favorite-card__meta">Grupo {{ equipo.group }} · #{{ equipo.fifaRanking }} FIFA</span>
             </NuxtLink>
-            <button class="favorite-card__remove" title="Quitar de favoritos" @click="quitarEquipo(equipo.id)">✕</button>
+            <button class="favorite-card__remove" title="Quitar de favoritos"
+              @click="quitarEquipo(equipo.id)">✕</button>
           </div>
         </div>
       </section>
 
-      <!-- Partidos favoritos -->
       <section class="favorites-section animate-slide-up delay-2">
         <h2 class="favorites-section__title">Partidos favoritos</h2>
         <div v-if="partidosFavoritos.length === 0" class="state-box state-box--compact">
           <p class="state-text">
-            No has guardado ningún partido. Ve a <NuxtLink to="/matches">Partidos</NuxtLink> y toca "Agregar a favoritos".
+            No has guardado ningún partido. Ve a <NuxtLink to="/matches">Partidos</NuxtLink> y toca "Agregar a
+            favoritos".
           </p>
         </div>
         <div v-else class="favorites-grid">
@@ -107,7 +120,8 @@ const formatearFecha = (ts: { toDate: () => Date }) =>
               <span class="favorite-card__name">{{ partido.homeTeam }} vs {{ partido.awayTeam }}</span>
               <span class="favorite-card__meta">{{ partido.stage }} · {{ formatearFecha(partido.kickoff) }}</span>
             </NuxtLink>
-            <button class="favorite-card__remove" title="Quitar de favoritos" @click="quitarPartido(partido.id)">✕</button>
+            <button class="favorite-card__remove" title="Quitar de favoritos"
+              @click="quitarPartido(partido.id)">✕</button>
           </div>
         </div>
       </section>

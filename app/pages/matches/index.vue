@@ -1,24 +1,40 @@
+// Página de listado de partidos, con filtros y paginación
 <script setup lang="ts">
+// Timestamp de Firestore para convertir fechas del fixture
 import { Timestamp } from 'firebase/firestore'
+// Catálogos de fases, grupos y estados
 import { FASES, GRUPOS, ESTADOS_PARTIDO } from '~/utils/worldCupData'
+// Fixture oficial de la fase de grupos, para precargar partidos
 import { FIXTURE_FASE_GRUPOS } from '~/utils/worldCupFixture'
+// Extrae un mensaje de error amigable
 import { mensajeError } from '~/utils/validation'
 
+// Partidos, estado de carga y acciones CRUD
 const { matches, loading, error, fetchMatches, createMatch, updateMatch, deleteMatch } = useMatches()
+// Equipos registrados, para resolver ids de equipo por nombre
 const { teams: equiposRegistrados, fetchTeams } = useTeams()
+// Usuario autenticado (controla si se muestran acciones de administración)
 const { user } = useAuth()
+// Diálogo de confirmación para acciones destructivas
 const { confirmar } = useConfirm()
 
-// Busca el id del equipo por nombre, para poder relacionar el partido con su documento en "teams"
+// Busca el id de un equipo registrado a partir de su nombre
 const idDeEquipo = (nombre: string) => equiposRegistrados.value.find((t) => t.name === nombre)?.id ?? null
 
+// Texto de búsqueda libre (equipo, estadio o ciudad)
 const busqueda = ref('')
+// Filtro de fase seleccionada
 const faseFiltro = ref('')
+// Filtro de estado seleccionado
 const estadoFiltro = ref('')
+// Filtro de fecha seleccionada
 const fechaFiltro = ref('')
+// Filtro de ciudad seleccionada
 const ciudadFiltro = ref('')
+// Controla la visibilidad del formulario de creación
 const mostrarFormulario = ref(false)
 
+// Carga (o recarga) los partidos
 const cargar = () => fetchMatches()
 
 onMounted(() => {
@@ -26,11 +42,13 @@ onMounted(() => {
   fetchTeams()
 })
 
+// Lista de ciudades distintas presentes en los partidos, para el filtro de ciudad
 const ciudades = computed(() => {
   const set = new Set(matches.value.map((m) => m.city).filter(Boolean))
   return Array.from(set).sort()
 })
 
+// Partidos que cumplen con todos los filtros activos
 const partidosFiltrados = computed(() => {
   const texto = busqueda.value.trim().toLowerCase()
   return matches.value.filter((m) => {
@@ -48,38 +66,44 @@ const partidosFiltrados = computed(() => {
   })
 })
 
-// Paginación del listado de partidos
+// Cantidad de partidos mostrados por página
 const PARTIDOS_POR_PAGINA = 12
+// Página actual de la lista de partidos
 const paginaActual = ref(1)
 
+// Vuelve a la primera página cuando cambia cualquier filtro
 watch([busqueda, faseFiltro, estadoFiltro, fechaFiltro, ciudadFiltro], () => {
   paginaActual.value = 1
 })
 
+// Total de páginas según la cantidad de partidos filtrados
 const totalPaginas = computed(() =>
   Math.max(1, Math.ceil(partidosFiltrados.value.length / PARTIDOS_POR_PAGINA)),
 )
 
+// Ajusta la página actual si queda fuera de rango tras filtrar
 watch(totalPaginas, (total) => {
   if (paginaActual.value > total) paginaActual.value = total
 })
 
+// Partidos de la página actual
 const partidosPaginados = computed(() => {
   const inicio = (paginaActual.value - 1) * PARTIDOS_POR_PAGINA
   return partidosFiltrados.value.slice(inicio, inicio + PARTIDOS_POR_PAGINA)
 })
 
+// Oculta el formulario y recarga la lista tras crear un partido
 const partidoCreado = async () => {
   mostrarFormulario.value = false
   await cargar()
 }
 
-// Carga masiva: crea de un solo click los 72 partidos oficiales de la fase
-// de grupos (12 grupos x 6 partidos). Omite los que ya existen (mismo
-// enfrentamiento y grupo) para evitar duplicados si se vuelve a ejecutar.
+// Indica si se está cargando el fixture oficial
 const cargandoFixture = ref(false)
+// Mensaje con el resultado de la carga del fixture
 const resultadoFixture = ref('')
 
+// Carga el fixture oficial de la fase de grupos: crea partidos nuevos o actualiza los existentes
 const cargarFixtureOficial = async () => {
   if (matches.value.length > 0) {
     const confirmado = await confirmar('Ya hay partidos cargados. ¿Cargar de todas formas el fixture oficial? Se actualizarán los resultados y estados de los enfrentamientos existentes.')
@@ -142,8 +166,10 @@ const cargarFixtureOficial = async () => {
   }
 }
 
+// Mensaje de error al eliminar un partido
 const errorEliminar = ref('')
 
+// Confirma y elimina un partido
 const eliminarPartido = async (id: string) => {
   const confirmado = await confirmar('¿Eliminar este partido? Esta acción no se puede deshacer.')
   if (!confirmado) return
@@ -157,6 +183,7 @@ const eliminarPartido = async (id: string) => {
   }
 }
 
+// Formatea un Timestamp de Firestore como fecha y hora en español
 const formatearFecha = (ts: { toDate: () => Date }) =>
   ts.toDate().toLocaleString('es', { day: '2-digit', month: 'short', year: 'numeric', hour: '2-digit', minute: '2-digit' })
 </script>
@@ -172,7 +199,7 @@ const formatearFecha = (ts: { toDate: () => Date }) =>
       </div>
       <div v-if="user" class="matches-header__actions">
         <button class="btn-refetch" :disabled="cargandoFixture" @click="cargarFixtureOficial">
-          {{ cargandoFixture ? 'Cargando...' : '⚡ Cargar fixture oficial (fase de grupos)' }}
+          {{ cargandoFixture ? 'Cargando...' : '⚡ Cargar fixture oficial' }}
         </button>
         <button class="btn-add" @click="mostrarFormulario = !mostrarFormulario">
           {{ mostrarFormulario ? 'Cancelar' : '+ Agregar partido' }}
@@ -181,19 +208,13 @@ const formatearFecha = (ts: { toDate: () => Date }) =>
     </header>
     <p v-if="resultadoFixture" class="state-text">{{ resultadoFixture }}</p>
 
-    <!-- Formulario de creación -->
     <Transition name="fade">
       <MatchForm v-if="mostrarFormulario" @created="partidoCreado" />
     </Transition>
 
-    <!-- Búsqueda y filtros -->
     <div class="matches-filters animate-slide-up delay-1">
-      <input
-        v-model="busqueda"
-        type="text"
-        class="field__input filters__search"
-        placeholder="Buscar por selección, estadio o ciudad..."
-      />
+      <input v-model="busqueda" type="text" class="field__input filters__search"
+        placeholder="Buscar por selección, estadio o ciudad..." />
       <select v-model="faseFiltro" class="field__input">
         <option value="">Todas las fases</option>
         <option v-for="f in FASES" :key="f" :value="f">{{ f }}</option>
@@ -216,26 +237,22 @@ const formatearFecha = (ts: { toDate: () => Date }) =>
       {{ partidosFiltrados.length }} partido{{ partidosFiltrados.length === 1 ? '' : 's' }} en total
     </p>
 
-    <!-- Estado: cargando -->
+    <p v-if="errorEliminar" class="form-error">{{ errorEliminar }}</p>
+
     <div v-if="loading" class="state-box">
       <div class="spinner" />
       <p class="state-text">Cargando partidos...</p>
     </div>
 
-    <!-- Estado: error -->
     <div v-else-if="error" class="state-box">
       <p class="state-text">{{ error }}</p>
       <button class="btn-refetch" @click="cargar">Reintentar</button>
     </div>
 
-    <!-- Estado: vacío -->
     <div v-else-if="partidosFiltrados.length === 0" class="state-box">
       <p class="state-text">No se encontraron partidos con esos filtros.</p>
     </div>
 
-    <p v-if="errorEliminar" class="form-error">{{ errorEliminar }}</p>
-
-    <!-- Listado -->
     <template v-else>
       <div class="matches-list">
         <div v-for="match in partidosPaginados" :key="match.id" class="match-card glass animate-slide-up">
@@ -248,7 +265,8 @@ const formatearFecha = (ts: { toDate: () => Date }) =>
               <span class="match-card__team">{{ match.awayTeam }}</span>
             </div>
             <div class="match-card__meta">
-              <span class="badge" :class="`badge--${match.status.replace(' ', '').toLowerCase()}`">{{ match.status }}</span>
+              <span class="badge" :class="`badge--${match.status.replace(' ', '').toLowerCase()}`">{{ match.status
+                }}</span>
               <span>{{ match.stage }}<template v-if="match.group"> · Grupo {{ match.group }}</template></span>
               <span>{{ match.stadium }}, {{ match.city }}</span>
               <span>{{ formatearFecha(match.kickoff) }}</span>
@@ -343,7 +361,6 @@ select.field__input {
   font-size: 0.85rem;
 }
 
-/* Filters */
 .matches-filters {
   display: flex;
   gap: var(--space-md);
@@ -382,7 +399,6 @@ select.field__input {
   border-color: var(--border-glass);
 }
 
-/* States */
 .state-box {
   display: flex;
   flex-direction: column;
@@ -406,7 +422,6 @@ select.field__input {
   animation: spin 0.8s linear infinite;
 }
 
-/* Matches list */
 .matches-list {
   display: flex;
   flex-direction: column;

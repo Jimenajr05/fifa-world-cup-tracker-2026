@@ -1,25 +1,37 @@
+// Formulario para crear un partido nuevo
 <script setup lang="ts">
+// Timestamp de Firestore para convertir la fecha del formulario
 import { Timestamp } from 'firebase/firestore'
+// Tipo de datos para crear un partido
 import type { NewMatch } from '~/composables/useMatches'
+// Catálogos de fases, grupos, estados y estadios
 import { FASES, GRUPOS, ESTADOS_PARTIDO, nombresEstadios, buscarEstadioPorNombre } from '~/utils/worldCupData'
+// Extrae un mensaje de error amigable
 import { mensajeError } from '~/utils/validation'
 
+// Notifica al padre cuando se crea el partido o se cancela el formulario
 const emit = defineEmits<{
   (e: 'created'): void
   (e: 'cancel'): void
 }>()
 
+// Acción de creación de partidos
 const { createMatch } = useMatches()
+// Equipos registrados, usados para llenar los selects de local/visitante
 const { teams: equiposRegistrados } = useTeams()
 
+// Nombres de equipos registrados, ordenados alfabéticamente
 const nombresEquiposRegistrados = computed(() => equiposRegistrados.value.map((t) => t.name).sort())
 
-// Busca el id del equipo por nombre, para poder relacionar el partido con su documento en "teams"
+// Busca el id de un equipo registrado a partir de su nombre
 const idDeEquipo = (nombre: string) => equiposRegistrados.value.find((t) => t.name === nombre)?.id ?? null
 
+// Indica si se está guardando el partido
 const creando = ref(false)
+// Mensaje de error del formulario
 const errorFormulario = ref('')
 
+// Datos del nuevo partido (fecha como string para el input datetime-local)
 const nuevoPartido = reactive({
   homeTeam: '',
   awayTeam: '',
@@ -31,12 +43,13 @@ const nuevoPartido = reactive({
   status: ESTADOS_PARTIDO[0],
 })
 
-// Al elegir el estadio, autocompleta la ciudad
+// Autocompleta la ciudad al elegir un estadio
 watch(() => nuevoPartido.stadium, (nombre) => {
   const estadio = buscarEstadioPorNombre(nombre)
   if (estadio) nuevoPartido.city = estadio.city
 })
 
+// Restablece el formulario a sus valores iniciales
 const resetFormulario = () => {
   nuevoPartido.homeTeam = ''
   nuevoPartido.awayTeam = ''
@@ -49,6 +62,7 @@ const resetFormulario = () => {
   errorFormulario.value = ''
 }
 
+// Valida campos obligatorios y crea el partido, notificando al padre si tiene éxito
 const agregarPartido = async () => {
   if (!nuevoPartido.homeTeam || !nuevoPartido.awayTeam || !nuevoPartido.stage || !nuevoPartido.stadium || !nuevoPartido.fecha) {
     errorFormulario.value = 'Completa equipos, fase, estadio y fecha.'

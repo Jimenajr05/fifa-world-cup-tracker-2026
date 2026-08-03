@@ -1,4 +1,7 @@
+// Formulario para editar un partido
 <script setup lang="ts">
+
+// Timestamp de Firestore y consultas directas para cargar plantillas de jugadores
 import {
   Timestamp,
   collection as firestoreCollection,
@@ -6,41 +9,52 @@ import {
   where as firestoreWhere,
   getDocs as firestoreGetDocs,
 } from 'firebase/firestore'
+// Tipos de partido y goleador
 import type { Match, MatchScorer } from '~/composables/useMatches'
+// Catálogos de fases, grupos, estados, posiciones y estadios
 import { FASES, GRUPOS, ESTADOS_PARTIDO, POSICIONES_JUGADOR, nombresEstadios, buscarEstadioPorNombre } from '~/utils/worldCupData'
+// Extrae un mensaje de error amigable
 import { mensajeError } from '~/utils/validation'
 
+// Partido que se está editando
 const props = defineProps<{
   match: Match
 }>()
 
+// Notifica al padre cuando se guarda o se cancela la edición
 const emit = defineEmits<{
   (e: 'saved'): void
   (e: 'cancel'): void
 }>()
 
+// Composables
+// Acción de actualización de partidos
 const { updateMatch } = useMatches()
+// Equipos registrados, usados para llenar los selects de local/visitante
 const { teams: equiposRegistrados } = useTeams()
+// Avanza al ganador en el bracket cuando el partido es de eliminatoria
 const { avanzarGanador } = useBracket()
+// Recalcula los puntos de las predicciones cuando el partido finaliza
 const { calcularPuntos } = usePredictions()
 
+// Nombres de equipos registrados, ordenados alfabéticamente
 const nombresEquiposRegistrados = computed(() => equiposRegistrados.value.map((t) => t.name).sort())
+// Busca el id de un equipo registrado a partir de su nombre
 const idDeEquipo = (nombre: string) => equiposRegistrados.value.find((t) => t.name === nombre)?.id ?? null
 
-// Goleadores: se cargan las plantillas de ambos equipos por separado para
-// poder ofrecer un select de jugadores propio de cada lado
+// Plantilla del equipo local, cargada desde Firestore
 const jugadoresLocal = ref<{ id: string; name: string; position: string }[]>([])
+// Plantilla del equipo visitante, cargada desde Firestore
 const jugadoresVisitante = ref<{ id: string; name: string; position: string }[]>([])
 
-// Agrupa una lista de jugadores por posición, en el orden natural
-// (Portero, Defensa, Mediocampista, Delantero), para mostrarlos como
-// <optgroup> dentro del select de goleadores.
+// Etiquetas en plural para agrupar jugadores por posición en los selects
 const PLURAL_POSICION: Record<string, string> = {
   Portero: 'Porteros',
   Defensa: 'Defensas',
   Mediocampista: 'Mediocampistas',
   Delantero: 'Delanteros',
 }
+// Agrupa una lista de jugadores por posición, omitiendo grupos vacíos
 const agruparPorPosicion = (jugadores: { id: string; name: string; position: string }[]) => {
   return POSICIONES_JUGADOR.map((posicion) => ({
     posicion,
@@ -48,17 +62,22 @@ const agruparPorPosicion = (jugadores: { id: string; name: string; position: str
     jugadores: jugadores.filter((j) => j.position === posicion),
   })).filter((grupo) => grupo.jugadores.length > 0)
 }
+// Lista editable de goleadores del partido
 const goleadores = ref<MatchScorer[]>(props.match.scorers ? [...props.match.scorers] : [])
 
+// Indica si se están guardando los cambios
 const guardando = ref(false)
+// Mensaje de error de la edición
 const errorEdicion = ref('')
 
+// Convierte un Timestamp de Firestore al formato que espera un input datetime-local
 const fechaParaInput = (ts: Timestamp) => {
   const d = ts.toDate()
   const pad = (n: number) => String(n).padStart(2, '0')
   return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}T${pad(d.getHours())}:${pad(d.getMinutes())}`
 }
 
+// Copia editable de los datos del partido
 const formulario = reactive({
   homeTeam: props.match.homeTeam,
   awayTeam: props.match.awayTeam,
@@ -72,19 +91,16 @@ const formulario = reactive({
   awayScore: props.match.awayScore,
 })
 
+// Autocompleta la ciudad al cambiar el estadio
 watch(() => formulario.stadium, (nombre) => {
   const estadio = buscarEstadioPorNombre(nombre)
   if (estadio) formulario.city = estadio.city
 })
 
-// Carga las plantillas de ambos equipos al abrir el formulario, para poblar
-// los selects de goleadores.
-// Usamos queries directas en lugar del composable compartido usePlayers()
-// para evitar que la segunda llamada sobrescriba los jugadores de la primera.
+// Carga las plantillas de jugadores de ambos equipos para elegir goleadores
 const cargarPlantillas = async () => {
   const { db: $firestore } = useFirestore()
 
-  // Asegurarnos de que los equipos estén cargados antes de buscar IDs
   if (equiposRegistrados.value.length === 0) {
     const { fetchTeams } = useTeams()
     await fetchTeams()
@@ -114,12 +130,14 @@ const cargarPlantillas = async () => {
 }
 cargarPlantillas()
 
+// Agrega una fila vacía de goleador para el equipo local o visitante
 const agregarGoleador = (lado: 'local' | 'visitante') => {
   const equipoId = lado === 'local' ? idDeEquipo(formulario.homeTeam) : idDeEquipo(formulario.awayTeam)
   if (!equipoId) return
   goleadores.value.push({ playerId: '', playerName: '', teamId: equipoId, goals: 1 })
 }
 
+// Actualiza el jugador elegido para una fila de goleador, según el equipo (local/visitante)
 const actualizarGoleadorJugador = (index: number, playerId: string, lado: 'local' | 'visitante') => {
   const lista = lado === 'local' ? jugadoresLocal.value : jugadoresVisitante.value
   const jugador = lista.find((j) => j.id === playerId)
@@ -130,17 +148,25 @@ const actualizarGoleadorJugador = (index: number, playerId: string, lado: 'local
   }
 }
 
+// Elimina una fila de goleador
 const quitarGoleador = (index: number) => {
   goleadores.value.splice(index, 1)
 }
 
+// Goleadores filtrados del equipo local
 const goleadoresLocal = computed(() => goleadores.value.filter((g) => g.teamId === idDeEquipo(formulario.homeTeam)))
+// Goleadores filtrados del equipo visitante
 const goleadoresVisitante = computed(() => goleadores.value.filter((g) => g.teamId === idDeEquipo(formulario.awayTeam)))
+// Índice real de un goleador dentro del arreglo completo (necesario tras filtrar)
 const indiceGlobal = (g: MatchScorer) => goleadores.value.indexOf(g)
 
+// Jugadores del equipo local agrupados por posición, para el select de goleadores
 const jugadoresLocalAgrupados = computed(() => agruparPorPosicion(jugadoresLocal.value))
+// Jugadores del equipo visitante agrupados por posición, para el select de goleadores
 const jugadoresVisitanteAgrupados = computed(() => agruparPorPosicion(jugadoresVisitante.value))
 
+// Valida el marcador, guarda los cambios y dispara efectos secundarios si el partido finaliza
+// (cálculo de puntos de predicciones y avance en el bracket de eliminatoria)
 const guardarCambios = async () => {
   errorEdicion.value = ''
 
@@ -174,13 +200,10 @@ const guardarCambios = async () => {
 
     const partidoActualizado = { ...props.match, homeTeam: formulario.homeTeam, awayTeam: formulario.awayTeam, stage: formulario.stage, homeScore, awayScore, status: formulario.status }
 
-    // Calcula puntos de predicciones para CUALQUIER partido que se finalice
-    // (fase de grupos incluida, no solo eliminatoria)
     if (formulario.status === 'Finalizado') {
       await calcularPuntos(partidoActualizado)
     }
 
-    // Solo los partidos de eliminatoria avanzan al bracket
     const esEliminatoria = formulario.stage !== 'Fase de grupos'
     if (esEliminatoria && formulario.status === 'Finalizado') {
       await avanzarGanador(partidoActualizado)
@@ -257,7 +280,6 @@ const guardarCambios = async () => {
     </div>
     <p v-if="errorEdicion" class="form-error">{{ errorEdicion }}</p>
 
-    <!-- Goleadores -->
     <div class="scorers-section">
       <h3 class="scorers-section__title">Goleadores</h3>
 

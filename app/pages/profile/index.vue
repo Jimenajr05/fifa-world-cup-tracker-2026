@@ -1,29 +1,40 @@
+// Página de perfil del usuario, mostrando su información, puntos acumulados y la predicción de campeón del torneo
 <script setup lang="ts">
+// Catálogo de nombres de selecciones para elegir campeón
 import { nombresSelecciones } from '~/utils/worldCupData'
 
+// Usuario, perfil y acciones relacionadas (elegir campeón, recargar perfil)
 const { user, perfil, cargandoPerfil, elegirCampeon, errorCampeon, cargarPerfil } = useAuth()
 
+// Vuelve a cargar el perfil del usuario actual
 const recargarPerfil = () => {
   if (user.value) cargarPerfil(user.value.uid)
 }
 
+// Indica si la imagen de avatar falló al cargar
 const imgError = ref(false)
+// URL de la foto de perfil: prioriza la de Firestore, luego la de Firebase Auth
 const fotoUrl = computed(() => perfil.value?.foto || user.value?.photoURL || '')
+// Reinicia el estado de error cada vez que cambia la URL de la foto
 watch(fotoUrl, () => {
   imgError.value = false
 })
 
+// Inicial del nombre del usuario, usada como avatar de respaldo
 const iniciales = computed(() => {
   const base = perfil.value?.nombre || user.value?.displayName || user.value?.email || ''
   return base.trim().charAt(0).toUpperCase() || '?'
 })
 
+// Puntos acumulados del usuario
 const puntos = computed(() => perfil.value?.puntos ?? 0)
 
-// Predicción de campeón: una vez elegida queda bloqueada
+// Campeón elegido en el select (antes de confirmar)
 const campeonSeleccionado = ref('')
+// Indica si se está guardando la elección de campeón
 const guardandoCampeon = ref(false)
 
+// Confirma la elección de campeón del usuario
 const confirmarCampeon = async () => {
   if (!campeonSeleccionado.value) return
   guardandoCampeon.value = true
@@ -38,36 +49,26 @@ const confirmarCampeon = async () => {
 <template>
   <div class="profile-page animate-fade-in">
     <div class="profile-card glass-strong animate-slide-up delay-1">
-      <!-- Estado: no logueado -->
       <div v-if="!user" class="state-box">
         <p class="state-text">Debes iniciar sesión para ver tu perfil.</p>
       </div>
 
-      <!-- Estado: cargando -->
       <div v-else-if="cargandoPerfil" class="state-box">
         <div class="spinner" />
         <p class="state-text">Cargando perfil...</p>
       </div>
 
-      <!-- Estado: vacío/error (no se pudo cargar el documento del perfil) -->
       <div v-else-if="!perfil" class="state-box">
         <p class="state-text">No se pudo cargar tu perfil.</p>
         <button class="btn-refetch" @click="recargarPerfil">Reintentar</button>
       </div>
 
-      <!-- Estado: perfil cargado -->
       <template v-else>
-        <!-- Header -->
+        
         <div class="profile-header">
           <div class="avatar-container">
-            <img
-              v-if="fotoUrl && !imgError"
-              :src="fotoUrl"
-              :alt="perfil?.nombre || user?.displayName || 'Avatar'"
-              class="avatar avatar-img"
-              referrerpolicy="no-referrer"
-              @error="imgError = true"
-            />
+            <img v-if="fotoUrl && !imgError" :src="fotoUrl" :alt="perfil?.nombre || user?.displayName || 'Avatar'"
+              class="avatar avatar-img" referrerpolicy="no-referrer" @error="imgError = true" />
             <div v-else class="avatar">{{ iniciales }}</div>
             <span class="avatar-ring" />
           </div>
@@ -78,10 +79,8 @@ const confirmarCampeon = async () => {
           </div>
         </div>
 
-        <!-- Divider -->
         <div class="divider" />
 
-        <!-- Predicción de campeón -->
         <div class="champion-section">
           <p class="field__label">Predicción de campeón del torneo</p>
           <p v-if="perfil?.campeonElegido" class="champion-locked">
@@ -92,12 +91,8 @@ const confirmarCampeon = async () => {
               <option value="" disabled>Selecciona tu campeón</option>
               <option v-for="pais in nombresSelecciones" :key="pais" :value="pais">{{ pais }}</option>
             </select>
-            <button
-              type="button"
-              class="save-btn champion-confirm-btn"
-              :disabled="!campeonSeleccionado || guardandoCampeon"
-              @click="confirmarCampeon"
-            >
+            <button type="button" class="save-btn champion-confirm-btn"
+              :disabled="!campeonSeleccionado || guardandoCampeon" @click="confirmarCampeon">
               {{ guardandoCampeon ? 'Guardando...' : 'Confirmar campeón' }}
             </button>
           </div>
@@ -111,26 +106,20 @@ const confirmarCampeon = async () => {
           Ver mis favoritos →
         </NuxtLink>
 
-        <!-- Form -->
-        <ProfileForm
-          :nombre-inicial="perfil.nombre ?? ''"
-          :seleccion-inicial="perfil.seleccionFavorita ?? null"
-          :foto-inicial="perfil.foto ?? user?.photoURL ?? ''"
-        />
+        <ProfileForm :nombre-inicial="perfil.nombre ?? ''" :seleccion-inicial="perfil.seleccionFavorita ?? null"
+          :foto-inicial="perfil.foto ?? user?.photoURL ?? ''" />
       </template>
     </div>
   </div>
 </template>
 
 <style scoped>
-/* ── Page Layout ───────────────────────────────────────────── */
 .profile-page {
   display: flex;
   justify-content: center;
   padding: var(--space-xl) 0;
 }
 
-/* ── Card ──────────────────────────────────────────────────── */
 .profile-card {
   width: 100%;
   max-width: 480px;
@@ -140,7 +129,6 @@ const confirmarCampeon = async () => {
   overflow: hidden;
 }
 
-/* Decorative top border glow */
 .profile-card::before {
   content: '';
   position: absolute;
@@ -154,7 +142,6 @@ const confirmarCampeon = async () => {
   box-shadow: 0 2px 20px rgba(255, 214, 10, 0.25);
 }
 
-/* ── States ────────────────────────────────────────────────── */
 .state-box {
   display: flex;
   flex-direction: column;
@@ -193,7 +180,6 @@ const confirmarCampeon = async () => {
   font-weight: 600;
 }
 
-/* ── Profile Header ────────────────────────────────────────── */
 .profile-header {
   display: flex;
   align-items: center;
@@ -305,16 +291,13 @@ const confirmarCampeon = async () => {
   text-decoration: underline;
 }
 
-/* ── Divider ───────────────────────────────────────────────── */
 .divider {
   height: 1px;
   margin: var(--space-xl) 0;
-  background: linear-gradient(
-    90deg,
-    transparent,
-    var(--border-glass),
-    transparent
-  );
+  background: linear-gradient(90deg,
+      transparent,
+      var(--border-glass),
+      transparent);
 }
 
 .field__label {
@@ -336,7 +319,7 @@ const confirmarCampeon = async () => {
   color: var(--text-primary);
   background: var(--bg-surface);
   transition: border-color var(--transition-fast), box-shadow var(--transition-fast),
-              background var(--transition-fast);
+    background var(--transition-fast);
   appearance: none;
   -webkit-appearance: none;
 }
@@ -352,7 +335,6 @@ const confirmarCampeon = async () => {
   background: var(--bg-surface-hover);
 }
 
-/* Select arrow */
 select.field__input {
   background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='12' viewBox='0 0 24 24' fill='none' stroke='%238b95a5' stroke-width='2.5' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpolyline points='6 9 12 15 18 9'%3E%3C/polyline%3E%3C/svg%3E");
   background-repeat: no-repeat;
@@ -365,7 +347,6 @@ select.field__input {
   font-size: 0.85rem;
 }
 
-/* ── Save Button ───────────────────────────────────────────── */
 .save-btn {
   display: flex;
   align-items: center;
@@ -389,12 +370,10 @@ select.field__input {
   content: '';
   position: absolute;
   inset: 0;
-  background: linear-gradient(
-    90deg,
-    transparent 0%,
-    rgba(255, 255, 255, 0.2) 50%,
-    transparent 100%
-  );
+  background: linear-gradient(90deg,
+      transparent 0%,
+      rgba(255, 255, 255, 0.2) 50%,
+      transparent 100%);
   background-size: 200% 100%;
   animation: shimmer 3s ease-in-out infinite;
   pointer-events: none;
@@ -419,7 +398,6 @@ select.field__input {
   display: none;
 }
 
-/* ── Responsive ────────────────────────────────────────────── */
 @media (max-width: 768px) {
   .profile-card {
     padding: var(--space-xl) var(--space-lg);

@@ -1,23 +1,38 @@
+// Página de detalle de un equipo, mostrando información, acciones de edición y eliminación, y enlaces a la plantilla y alineación
 <script setup lang="ts">
+// Tipo de equipo
 import type { Team } from '~/composables/useTeams'
+// Extrae un mensaje de error amigable
 import { mensajeError } from '~/utils/validation'
 
+// Ruta y router, para leer el id del equipo y navegar tras eliminar
 const route = useRoute()
 const router = useRouter()
+// Carga de equipo por id y eliminación
 const { fetchTeamById, deleteTeam } = useTeams()
+// Usuario, perfil (para favoritos) y acción de alternar equipo favorito
 const { user, perfil, alternarEquipoFavorito } = useAuth()
+// Diálogo de confirmación para eliminar
 const { confirmar } = useConfirm()
 
+// Indica si el equipo actual está en los favoritos del usuario
 const esFavorito = computed(() => !!team.value && (perfil.value?.equiposFavoritos.includes(team.value.id) ?? false))
 
+// Id del equipo, tomado de la URL
 const id = route.params.id as string
+// Equipo cargado
 const team = ref<Team | null>(null)
 
+// Indica si el equipo se está cargando
 const loading = ref(false)
+// Mensaje de error al cargar el equipo
 const error = ref('')
+// Controla si se muestra el formulario de edición
 const editando = ref(false)
+// Mensaje de error al eliminar el equipo
 const errorEliminar = ref('')
 
+// Carga el equipo por id
 const cargar = async () => {
   loading.value = true
   error.value = ''
@@ -38,11 +53,13 @@ const cargar = async () => {
 
 onMounted(cargar)
 
+// Oculta el formulario de edición y recarga el equipo
 const equipoGuardado = async () => {
   editando.value = false
   await cargar()
 }
 
+// Confirma y elimina el equipo, luego navega de vuelta al listado
 const eliminar = async () => {
   if (!team.value) return
   const confirmado = await confirmar(`¿Eliminar la selección ${team.value.name}?`)
@@ -62,19 +79,16 @@ const eliminar = async () => {
   <div class="team-detail animate-fade-in">
     <NuxtLink to="/teams" class="back-link">← Volver a selecciones</NuxtLink>
 
-    <!-- Estado: cargando -->
     <div v-if="loading" class="state-box">
       <div class="spinner" />
       <p class="state-text">Cargando selección...</p>
     </div>
 
-    <!-- Estado: error -->
     <div v-else-if="error" class="state-box">
       <p class="state-text">{{ error }}</p>
       <button class="btn-refetch" @click="cargar">Reintentar</button>
     </div>
 
-    <!-- Contenido -->
     <div v-else-if="team" class="team-card-detail glass-strong animate-slide-up">
       <div class="team-detail__header">
         <img v-if="team.flag" :src="team.flag" :alt="team.name" class="team-detail__flag" />
@@ -108,11 +122,8 @@ const eliminar = async () => {
         </dl>
 
         <div v-if="user" class="team-detail__actions">
-          <button
-            class="btn-favorite"
-            :class="{ 'btn-favorite--activo': esFavorito }"
-            @click="alternarEquipoFavorito(team.id)"
-          >
+          <button class="btn-favorite" :class="{ 'btn-favorite--activo': esFavorito }"
+            @click="alternarEquipoFavorito(team.id)">
             {{ esFavorito ? '★ En favoritos' : '☆ Agregar a favoritos' }}
           </button>
           <button class="btn-edit" @click="editando = true">Editar</button>
@@ -121,12 +132,10 @@ const eliminar = async () => {
         <p v-if="errorEliminar" class="form-error">{{ errorEliminar }}</p>
       </template>
 
-      <!-- Formulario de edición -->
       <TeamEditForm v-else :team="team" @saved="equipoGuardado" @cancel="editando = false" />
 
       <div class="divider" />
 
-      <!-- Enlaces a la plantilla y a la alineación (rutas anidadas /teams/[id]/players y /lineup) -->
       <div class="squad-links">
         <NuxtLink :to="`/teams/${id}/players`" class="squad-link glass">
           <span class="squad-link__icon">👕</span>
@@ -324,7 +333,6 @@ const eliminar = async () => {
   font-size: 0.85rem;
 }
 
-/* ── Enlaces a plantilla / alineación ─────────────────────────── */
 .squad-links {
   display: flex;
   flex-direction: column;

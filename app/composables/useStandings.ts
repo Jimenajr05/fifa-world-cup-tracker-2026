@@ -1,9 +1,12 @@
+// Composable para calcular la tabla de posiciones de un grupo de la fase de grupos
+// Consultas de solo lectura a Firestore
 import { collection, getDocs, query, where } from 'firebase/firestore'
+// Tipo de equipo
 import type { Team } from './useTeams'
+// Tipo de partido
 import type { Match } from './useMatches'
 
-// Fila de la tabla de posiciones de un grupo, calculada a partir de
-// las selecciones (teams) y los partidos finalizados de fase de grupos (matches).
+// Fila de la tabla de posiciones de un grupo
 export interface StandingRow {
   teamId: string
   teamName: string
@@ -19,14 +22,17 @@ export interface StandingRow {
   points: number
 }
 
+// Composable que calcula la tabla de posiciones de un grupo de la fase de grupos
 export const useStandings = () => {
   const { db: $firestore } = useFirestore()
+  // Tabla de posiciones calculada
   const standings = useState<StandingRow[]>('standings', () => [])
+  // Indica si la tabla se está calculando
   const loading = useState<boolean>('standingsLoading', () => false)
+  // Mensaje de error al calcular la tabla
   const error = useState<string | null>('standingsError', () => null)
 
-  // Calcula la tabla de posiciones de un grupo a partir de los resultados
-  // finalizados. Se recalcula cada vez que cambian los resultados en Firestore.
+  // Calcula la tabla de posiciones de un grupo a partir de sus equipos y partidos finalizados
   const fetchStandings = async (group: string) => {
     loading.value = true
     error.value = null
@@ -44,6 +50,7 @@ export const useStandings = () => {
       const matchesSnap = await getDocs(matchesQuery)
       const matches = matchesSnap.docs.map((d) => d.data() as Omit<Match, 'id'>)
 
+      // Inicializa una fila en cero por cada equipo del grupo
       const tabla = new Map<string, StandingRow>()
       for (const team of teams) {
         tabla.set(team.name, {
@@ -62,6 +69,7 @@ export const useStandings = () => {
         })
       }
 
+      // Acumula partidos jugados, goles y puntos según el resultado de cada partido
       for (const match of matches) {
         if (match.homeScore === null || match.awayScore === null) continue
         const local = tabla.get(match.homeTeam)
@@ -95,10 +103,8 @@ export const useStandings = () => {
         fila.goalDifference = fila.goalsFor - fila.goalsAgainst
       }
 
-      // Criterios de desempate oficiales FIFA (Mundial 2026), en orden:
-      // 1) puntos · 2) puntos entre los empatados (mini-tabla directa)
-      // 3) diferencia de gol entre los empatados · 4) goles a favor entre los empatados
-      // 5) diferencia de gol general · 6) goles a favor general · 7) ranking FIFA (fair play y sorteo no aplican: sin datos de tarjetas)
+      // Calcula una mini tabla (puntos, diferencia de gol, goles a favor) solo entre los equipos empatados,
+      // usada como criterio de desempate por enfrentamientos directos
       const miniTabla = (equipos: StandingRow[]) => {
         const nombres = new Set(equipos.map((e) => e.teamName))
         const stats = new Map(equipos.map((e) => [e.teamName, { puntos: 0, dg: 0, gf: 0 }]))
@@ -118,6 +124,8 @@ export const useStandings = () => {
         return stats
       }
 
+      // Compara dos filas aplicando: puntos, enfrentamiento directo (si hay más de un empatado),
+      // diferencia de gol general, goles a favor y ranking FIFA
       const comparar = (a: StandingRow, b: StandingRow, empatados: StandingRow[]) => {
         if (b.points !== a.points) return b.points - a.points
         if (empatados.length > 1) {
@@ -130,7 +138,7 @@ export const useStandings = () => {
         }
         if (b.goalDifference !== a.goalDifference) return b.goalDifference - a.goalDifference
         if (b.goalsFor !== a.goalsFor) return b.goalsFor - a.goalsFor
-        return a.fifaRanking - b.fifaRanking // ranking FIFA más bajo = mejor posicionado
+        return a.fifaRanking - b.fifaRanking
       }
 
       const todos = Array.from(tabla.values())
@@ -146,5 +154,6 @@ export const useStandings = () => {
     }
   }
 
+  // API pública del composable
   return { standings, loading, error, fetchStandings }
 }

@@ -1,10 +1,14 @@
+// Página de grupos: muestra la lista de grupos existentes y la cantidad de selecciones en cada uno
 <script setup lang="ts">
+// Equipos registrados y estado de carga
 const { teams, loading, error, fetchTeams } = useTeams()
 
+// Carga (o recarga) los equipos
 const cargar = () => fetchTeams()
 
 onMounted(cargar)
 
+// Lista de grupos existentes con la cantidad de equipos en cada uno, ordenada alfabéticamente
 const grupos = computed(() => {
   const mapa = new Map<string, number>()
   for (const team of teams.value) {
@@ -26,32 +30,23 @@ const grupos = computed(() => {
       <p class="groups-subtitle">Consulta la tabla de posiciones de cada grupo</p>
     </header>
 
-    <!-- Estado: cargando -->
     <div v-if="loading" class="state-box">
       <div class="spinner" />
       <p class="state-text">Cargando grupos...</p>
     </div>
 
-    <!-- Estado: error -->
     <div v-else-if="error" class="state-box">
       <p class="state-text">{{ error }}</p>
       <button class="btn-refetch" @click="cargar">Reintentar</button>
     </div>
 
-    <!-- Estado: vacío -->
     <div v-else-if="grupos.length === 0" class="state-box">
       <p class="state-text">Aún no hay selecciones asignadas a un grupo.</p>
       <NuxtLink to="/teams" class="btn-refetch">Ir a selecciones</NuxtLink>
     </div>
 
-    <!-- Listado de grupos -->
     <div v-else class="groups-grid">
-      <NuxtLink
-        v-for="g in grupos"
-        :key="g.grupo"
-        :to="`/groups/${g.grupo}`"
-        class="group-card glass animate-slide-up"
-      >
+      <NuxtLink v-for="g in grupos" :key="g.grupo" :to="`/groups/${g.grupo}`" class="group-card glass animate-slide-up">
         <span class="group-card__letter">{{ g.grupo }}</span>
         <span class="group-card__count">{{ g.cantidad }} selecciones</span>
       </NuxtLink>

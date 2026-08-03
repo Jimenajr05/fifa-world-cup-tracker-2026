@@ -1,3 +1,5 @@
+// Composable para manejar partidos de fútbol en Firestore
+// Lectura/escritura de documentos y consultas en Firestore
 import {
   collection,
   doc,
@@ -10,10 +12,12 @@ import {
   where,
   Timestamp,
 } from 'firebase/firestore'
+// Catálogos de fases, grupos y estados válidos de partido
 import { FASES, GRUPOS, ESTADOS_PARTIDO } from '~/utils/worldCupData'
+// Validaciones de campos de formulario
 import { ValidationError, requerido, longitud, enLista } from '~/utils/validation'
 
-// Un gol registrado en un partido, para poder calcular "máximo goleador"
+// Goleador registrado en un partido
 export interface MatchScorer {
   playerId: string
   playerName: string
@@ -21,40 +25,45 @@ export interface MatchScorer {
   goals: number
 }
 
-// Estructura de un partido en Firestore (colección "matches")
+// Forma de un documento de partido en Firestore
 export interface Match {
   id: string
   homeTeam: string
   awayTeam: string
-  homeTeamId?: string | null // referencia al documento del equipo local (para filtrar jugadores)
-  awayTeamId?: string | null // referencia al documento del equipo visitante
+  homeTeamId?: string | null
+  awayTeamId?: string | null
   stage: string
-  group: string | null // solo aplica cuando stage === 'Fase de grupos'
+  group: string | null
   stadium: string
   city: string
   kickoff: Timestamp
   homeScore: number | null
   awayScore: number | null
   status: string
-  round?: number // orden de la ronda eliminatoria (0 = Dieciseisavos), ver useBracket
-  bracketPosition?: number // posición dentro del bracket de esa ronda
-  scorers?: MatchScorer[] // goleadores del partido, usados en useStatistics
+  round?: number
+  bracketPosition?: number | null
+  scorers?: MatchScorer[]
 }
 
+// Forma de un nuevo partido a crear (sin ID)
 export type NewMatch = Omit<Match, 'id'>
 
+// Composable para manejar partidos de fútbol en Firestore
 const MARCADOR_MAX = 50
 
+// Composable para manejar partidos de fútbol en Firestore
 export const useMatches = () => {
+  // Referencia a la colección de partidos y predicciones en Firestore
   const { db: $firestore } = useFirestore()
   const matches = useState<Match[]>('matches', () => [])
   const loading = useState<boolean>('matchesLoading', () => false)
   const error = useState<string | null>('matchesError', () => null)
 
+  // Referencias a las colecciones de Firestore
   const matchesCollection = () => collection($firestore, 'matches')
   const predictionsCollection = () => collection($firestore, 'predictions')
 
-  // Trae los partidos, opcionalmente filtrados por fase, grupo o estado
+  // Función para obtener partidos desde Firestore con filtros opcionales
   const fetchMatches = async (filters?: { stage?: string; group?: string; status?: string }) => {
     loading.value = true
     error.value = null
@@ -77,6 +86,7 @@ export const useMatches = () => {
     }
   }
 
+  // Función para obtener un partido por su ID desde Firestore
   const fetchMatchById = async (id: string): Promise<Match | null> => {
     try {
       const snap = await getDoc(doc($firestore, 'matches', id))
@@ -88,7 +98,7 @@ export const useMatches = () => {
     }
   }
 
-  // ── Reglas de negocio ──────────────────────────────────────────
+  // Validación de marcador (debe ser un número entero entre 0 y MARCADOR_MAX)
   const validarMarcador = (valor: number | null, campo: string) => {
     if (valor === null) return
     if (!Number.isInteger(valor) || valor < 0 || valor > MARCADOR_MAX) {
@@ -96,7 +106,9 @@ export const useMatches = () => {
     }
   }
 
+  // Validación de goleadores: la suma de goles de los goleadores no puede exceder el marcador del equipo
   const validarGoleadores = (data: NewMatch) => {
+    // Validación de goleadores: la suma de goles de los goleadores no puede exceder el marcador del equipo
     const scorers = data.scorers ?? []
     if (data.homeTeamId && data.homeScore !== null) {
       const goles = scorers.filter((s) => s.teamId === data.homeTeamId).reduce((sum, s) => sum + Number(s.goals || 0), 0)
@@ -104,26 +116,31 @@ export const useMatches = () => {
         throw new ValidationError(`Los goleadores de ${data.homeTeam} suman más goles (${goles}) que el marcador (${data.homeScore}).`)
       }
     }
+    // Validación de goleadores: la suma de goles de los goleadores no puede exceder el marcador del equipo
     if (data.awayTeamId && data.awayScore !== null) {
       const goles = scorers.filter((s) => s.teamId === data.awayTeamId).reduce((sum, s) => sum + Number(s.goals || 0), 0)
       if (goles > data.awayScore) {
         throw new ValidationError(`Los goleadores de ${data.awayTeam} suman más goles (${goles}) que el marcador (${data.awayScore}).`)
       }
     }
-    // Ensure the number of scorer entries does not exceed the total goals for the team
+
+    // Validación adicional: no puede haber más goleadores que goles en el marcador
     const scorerCountHome = scorers.filter((s) => s.teamId === data.homeTeamId).length;
     if (data.homeScore !== null && scorerCountHome > data.homeScore) {
       throw new ValidationError(`Se han ingresado ${scorerCountHome} goleadores para ${data.homeTeam}, pero el marcador indica solo ${data.homeScore} goles.`);
     }
+    // Validación adicional: no puede haber más goleadores que goles en el marcador
     const scorerCountAway = scorers.filter((s) => s.teamId === data.awayTeamId).length;
     if (data.awayScore !== null && scorerCountAway > data.awayScore) {
       throw new ValidationError(`Se han ingresado ${scorerCountAway} goleadores para ${data.awayTeam}, pero el marcador indica solo ${data.awayScore} goles.`);
     }
+    // Validación adicional: cada goleador debe tener al menos 1 gol registrado
     if (scorers.some((s) => !Number.isInteger(s.goals) || s.goals < 1)) {
       throw new ValidationError('Cada goleador debe tener al menos 1 gol registrado.')
     }
   }
 
+  // Validación de datos de un partido antes de crear o actualizar
   const validarDatosPartido = (data: NewMatch) => {
     requerido(data.homeTeam, 'El equipo local')
     requerido(data.awayTeam, 'El equipo visitante')
@@ -153,6 +170,7 @@ export const useMatches = () => {
     validarGoleadores(data)
   }
 
+  // Verifica si ya existe un partido entre los mismos equipos con la misma fecha y hora
   const partidoDuplicado = async (data: NewMatch, excludeId?: string) => {
     const snap = await getDocs(matchesCollection())
     return snap.docs.some((d) => {
@@ -166,25 +184,26 @@ export const useMatches = () => {
     })
   }
 
+  // Elimina todas las predicciones asociadas a un partido
   const eliminarPrediccionesDelPartido = async (matchId: string) => {
     const snap = await getDocs(query(predictionsCollection(), where('matchId', '==', matchId)))
     await Promise.all(snap.docs.map((d) => deleteDoc(d.ref)))
   }
 
+  // Verifica que el equipo tenga 11 jugadores titulares definidos
   const validarAlineacionTitular = async (nombreEquipo: string, equipoId?: string | null) => {
     let targetTeamId = equipoId
     if (!targetTeamId) {
       const qTeam = query(collection($firestore, 'teams'), where('name', '==', nombreEquipo))
       const snapTeam = await getDocs(qTeam)
-      if (!snapTeam.empty) {
-        targetTeamId = snapTeam.docs[0].id
-      }
+      targetTeamId = snapTeam.docs[0]?.id
     }
 
     if (!targetTeamId) {
       throw new ValidationError(`La selección "${nombreEquipo}" aún no está registrada en el sistema.`)
     }
 
+    // Verifica que el equipo tenga 11 jugadores titulares definidos
     const qPlayers = query(collection($firestore, 'players'), where('teamId', '==', targetTeamId))
     const snapPlayers = await getDocs(qPlayers)
     const titulares = snapPlayers.docs.filter((d) => d.data().titular === true)
@@ -196,6 +215,7 @@ export const useMatches = () => {
     }
   }
 
+  // Crea un partido validando datos, fecha, duplicados y alineaciones titulares
   const createMatch = async (
     data: NewMatch,
     opciones?: { permitirFechaPasada?: boolean; omitirValidacionAlineacion?: boolean }
@@ -221,6 +241,7 @@ export const useMatches = () => {
     return ref.id
   }
 
+  // Actualiza un partido, validando datos y reglas de negocio sobre partidos finalizados
   const updateMatch = async (id: string, data: Partial<NewMatch>) => {
     const actualSnap = await getDoc(doc($firestore, 'matches', id))
     if (!actualSnap.exists()) throw new ValidationError('El partido que intentas editar ya no existe.')
@@ -248,6 +269,7 @@ export const useMatches = () => {
     await updateDoc(doc($firestore, 'matches', id), data)
   }
 
+  // Elimina un partido (si no está finalizado) y sus predicciones asociadas
   const deleteMatch = async (id: string) => {
     const snap = await getDoc(doc($firestore, 'matches', id))
     if (snap.exists() && (snap.data() as NewMatch).status === 'Finalizado') {
@@ -257,9 +279,7 @@ export const useMatches = () => {
     await deleteDoc(doc($firestore, 'matches', id))
   }
 
-  // Revisa si el equipo (por id) tiene AHORA MISMO un partido en estado "En Vivo",
-  // ya sea como local o como visitante. Se usa para bloquear la eliminación de
-  // jugadores de una selección que está jugando en este momento.
+  // Indica si el equipo tiene un partido en curso ("En Vivo")
   const equipoTienePartidoEnVivo = async (teamId: string): Promise<boolean> => {
     const q = query(collection($firestore, 'matches'), where('status', '==', 'En Vivo'))
     const snap = await getDocs(q)
@@ -269,6 +289,7 @@ export const useMatches = () => {
     })
   }
 
+  // API pública del composable
   return {
     matches,
     loading,

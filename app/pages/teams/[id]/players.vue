@@ -1,12 +1,20 @@
+// Página de jugadores de un equipo, mostrando la plantilla completa con opciones de edición y eliminación
 <script setup lang="ts">
+// Tipo de equipo
 import type { Team } from '~/composables/useTeams'
+// Tipo de jugador
 import type { Player } from '~/composables/usePlayers'
+// Nombres reales por selección, para el select de nombre de jugador
 import { NOMBRES_JUGADORES_POR_SELECCION, OTRO_NOMBRE_JUGADOR as OTRO_NOMBRE } from '~/utils/worldCupData'
 
+// Ruta actual, para leer el id del equipo
 const route = useRoute()
+// Id del equipo, tomado de la URL
 const id = route.params.id as string
 
+// Carga de equipo por id
 const { fetchTeamById } = useTeams()
+// Jugadores del equipo, estado de carga y acción de eliminar
 const {
   players,
   loading: cargandoJugadores,
@@ -14,14 +22,21 @@ const {
   fetchPlayersByTeam,
   deletePlayer,
 } = usePlayers()
+// Usuario autenticado (controla si se muestran acciones de administración)
 const { user } = useAuth()
+// Diálogo de confirmación para eliminar
 const { confirmar } = useConfirm()
+// Verifica si el equipo tiene un partido en vivo (bloquea eliminar jugadores)
 const { equipoTienePartidoEnVivo } = useMatches()
+// Goles totales por jugador, para mostrarlos en la lista
 const { obtenerGolesPorJugador } = useStatistics()
 
+// Equipo cargado
 const team = ref<Team | null>(null)
+// Mapa de goles por id de jugador
 const golesPorJugador = ref<Map<string, number>>(new Map())
 
+// Carga el equipo, sus jugadores y los goles totales
 const cargar = () => {
   fetchTeamById(id).then((resultado) => { team.value = resultado })
   fetchPlayersByTeam(id)
@@ -30,15 +45,13 @@ const cargar = () => {
 
 onMounted(cargar)
 
-// Nombres REALES convocados 2026 de esta selección (si hay datos verificados);
-// si no hay datos para esta selección, solo queda "Otro" para escribirlo a mano
+// Nombres reales disponibles para la selección, más la opción de escribir uno propio
 const nombresDisponibles = computed(() => {
   const reales = NOMBRES_JUGADORES_POR_SELECCION[team.value?.name ?? '']
   return reales ? [...reales, OTRO_NOMBRE] : [OTRO_NOMBRE]
 })
 
-// Aviso no bloqueante: reglamento FIFA exige entre 23 y 26 convocados,
-// con mínimo 3 porteros en la plantilla final.
+// Mensaje de aviso si la plantilla no cumple los mínimos de FIFA (23 jugadores, 3 porteros)
 const avisoPlantilla = computed(() => {
   if (players.value.length === 0) return ''
   const porteros = players.value.filter((p) => p.position === 'Portero').length
@@ -51,8 +64,9 @@ const avisoPlantilla = computed(() => {
   return ''
 })
 
-// ── Búsqueda dentro de la plantilla ─────────────────────────
+// Texto de búsqueda libre (por nombre o club)
 const busqueda = ref('')
+// Jugadores que coinciden con el texto de búsqueda
 const jugadoresFiltrados = computed(() => {
   const texto = busqueda.value.trim().toLowerCase()
   if (!texto) return players.value
@@ -61,39 +75,44 @@ const jugadoresFiltrados = computed(() => {
   )
 })
 
-// ── Alta de jugador ──────────────────────────────────────────
+// Controla la visibilidad del formulario de creación de jugador
 const mostrarFormularioJugador = ref(false)
 
+// Oculta el formulario y recarga la plantilla tras crear un jugador
 const jugadorCreado = async () => {
   mostrarFormularioJugador.value = false
   await fetchPlayersByTeam(id)
 }
 
-// ── Edición de un jugador existente ──────────────────────────
+// Id del jugador que se está editando actualmente (null si ninguno)
 const edicionJugadorId = ref<string | null>(null)
 
+// Activa el modo edición para un jugador
 const iniciarEdicionJugador = (player: Player) => {
   edicionJugadorId.value = player.id
 }
 
+// Cancela la edición en curso
 const cancelarEdicionJugador = () => {
   edicionJugadorId.value = null
 }
 
+// Sale del modo edición y recarga la plantilla tras guardar cambios
 const jugadorEditado = async () => {
   edicionJugadorId.value = null
   await fetchPlayersByTeam(id)
 }
 
+// Indica si se está eliminando un jugador
 const eliminandoJugador = ref(false)
+// Mensaje de error al eliminar un jugador
 const errorEliminarJugador = ref('')
 
+// Confirma y elimina un jugador, bloqueando la acción si el equipo tiene un partido en vivo
 const eliminarJugador = async (playerId: string) => {
   errorEliminarJugador.value = ''
   eliminandoJugador.value = true
   try {
-    // No se puede eliminar un jugador si su selección tiene un partido
-    // "En Vivo" en este momento
     const jugando = await equipoTienePartidoEnVivo(id)
     if (jugando) {
       errorEliminarJugador.value = 'No se puede eliminar: esta selección tiene un partido en vivo ahora mismo.'
@@ -136,60 +155,38 @@ const eliminarJugador = async (playerId: string) => {
 
     <p v-if="avisoPlantilla" class="form-hint">⚠ {{ avisoPlantilla }}</p>
 
-    <!-- Formulario de alta -->
     <Transition name="fade">
-      <PlayerForm
-        v-if="mostrarFormularioJugador"
-        :team-id="id"
-        :team-name="team?.name ?? ''"
-        @created="jugadorCreado"
-        @cancel="mostrarFormularioJugador = false"
-      />
+      <PlayerForm v-if="mostrarFormularioJugador" :team-id="id" :team-name="team?.name ?? ''" @created="jugadorCreado"
+        @cancel="mostrarFormularioJugador = false" />
     </Transition>
 
-    <!-- Búsqueda -->
-    <input
-      v-model="busqueda"
-      type="text"
-      class="field__input search-input animate-slide-up delay-1"
-      placeholder="Buscar jugador por nombre o club..."
-    />
+    <input v-model="busqueda" type="text" class="field__input search-input animate-slide-up delay-1"
+      placeholder="Buscar jugador por nombre o club..." />
     <p v-if="errorEliminarJugador" class="form-error">{{ errorEliminarJugador }}</p>
 
     <p v-if="errorEliminarJugador" class="form-error">{{ errorEliminarJugador }}</p>
 
-    <!-- Estado: cargando -->
     <div v-if="cargandoJugadores" class="state-box">
       <div class="spinner" />
       <p class="state-text">Cargando plantilla...</p>
     </div>
 
-    <!-- Estado: error -->
     <div v-else-if="errorJugadores" class="state-box">
       <p class="state-text">{{ errorJugadores }}</p>
       <button class="btn-refetch" @click="cargar">Reintentar</button>
     </div>
 
-    <!-- Estado: vacío -->
     <div v-else-if="jugadoresFiltrados.length === 0" class="state-box">
       <p class="state-text">
         {{ players.length === 0 ? 'Esta selección aún no tiene jugadores registrados.' : 'No se encontraron jugadores con esa búsqueda.' }}
       </p>
     </div>
 
-    <!-- Listado -->
     <ul v-else class="player-list">
       <li v-for="player in jugadoresFiltrados" :key="player.id" class="player-item">
-        <!-- Modo edición -->
-        <PlayerEditForm
-          v-if="edicionJugadorId === player.id"
-          :player="player"
-          :nombres-disponibles="nombresDisponibles"
-          @saved="jugadorEditado"
-          @cancel="cancelarEdicionJugador"
-        />
+        <PlayerEditForm v-if="edicionJugadorId === player.id" :player="player" :nombres-disponibles="nombresDisponibles"
+          @saved="jugadorEditado" @cancel="cancelarEdicionJugador" />
 
-        <!-- Modo visualización -->
         <template v-else>
           <span class="player-item__number">{{ player.number }}</span>
           <div class="player-item__info">
@@ -201,12 +198,8 @@ const eliminarJugador = async (playerId: string) => {
           </div>
           <div v-if="user" class="player-item__actions">
             <button class="player-item__edit" title="Editar" @click="iniciarEdicionJugador(player)">✎</button>
-            <button
-              class="player-item__delete"
-              title="Eliminar"
-              :disabled="eliminandoJugador"
-              @click="eliminarJugador(player.id)"
-            >✕</button>
+            <button class="player-item__delete" title="Eliminar" :disabled="eliminandoJugador"
+              @click="eliminarJugador(player.id)">✕</button>
           </div>
         </template>
       </li>

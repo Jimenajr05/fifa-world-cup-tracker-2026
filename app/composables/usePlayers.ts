@@ -1,3 +1,5 @@
+// Composable para gestión de jugadores en Firestore: CRUD y validaciones de plantilla
+// Lectura/escritura de documentos y consultas en Firestore
 import {
   collection,
   doc,
@@ -9,10 +11,12 @@ import {
   query,
   where,
 } from 'firebase/firestore'
+// Catálogo de posiciones válidas de jugador
 import { POSICIONES_JUGADOR } from '~/utils/worldCupData'
+// Validaciones de campos de formulario
 import { ValidationError, requerido, longitud, enteroEnRango, enLista } from '~/utils/validation'
 
-// Estructura de un jugador en Firestore (colección "players")
+// Forma de un documento de jugador en Firestore
 export interface Player {
   id: string
   teamId: string
@@ -23,12 +27,10 @@ export interface Player {
   titular: boolean
 }
 
+// Datos de un jugador antes de tener id (para crear/actualizar)
 export type NewPlayer = Omit<Player, 'id'>
 
-// Reglamento oficial FIFA (Mundial 2026): la plantilla final se numera del
-// 1 al 26 (no del 1 al 99 como en clubes), y el dorsal 1 es exclusivo de un
-// portero. La plantilla debe tener mínimo 23 y máximo 26 jugadores, con al
-// menos 3 porteros.
+// Reglas de plantilla: límites de jugadores, titulares y dorsales
 const MAX_JUGADORES_POR_PLANTILLA = 26
 const MIN_JUGADORES_PLANTILLA_COMPLETA = 23
 const MIN_PORTEROS_PLANTILLA = 3
@@ -38,15 +40,20 @@ const DORSAL_MIN = 1
 const DORSAL_MAX = 26
 const DORSAL_EXCLUSIVO_PORTERO = 1
 
+// Composable para gestión de jugadores: CRUD y validaciones de plantilla
 export const usePlayers = () => {
   const { db: $firestore } = useFirestore()
+  // Lista de jugadores cargados
   const players = useState<Player[]>('players', () => [])
+  // Indica si se están cargando jugadores
   const loading = useState<boolean>('playersLoading', () => false)
+  // Mensaje de error al cargar jugadores
   const error = useState<string | null>('playersError', () => null)
 
+  // Referencia a la colección 'players'
   const playersCollection = () => collection($firestore, 'players')
 
-  // Trae la plantilla de una selección (query por teamId con where())
+  // Carga los jugadores de un equipo, ordenados por número de camiseta
   const fetchPlayersByTeam = async (teamId: string) => {
     loading.value = true
     error.value = null
@@ -64,7 +71,7 @@ export const usePlayers = () => {
     }
   }
 
-  // Trae todos los jugadores de todas las selecciones, para la búsqueda global
+  // Carga todos los jugadores, ordenados alfabéticamente por nombre
   const fetchAllPlayers = async () => {
     loading.value = true
     error.value = null
@@ -81,9 +88,10 @@ export const usePlayers = () => {
     }
   }
 
-  // ── Reglas de negocio ──────────────────────────────────────────
+  // Patrón que valida nombres con letras, espacios, apóstrofes y guiones
   const NOMBRE_REGEX = /^[\p{L}\p{M}'’\-. ]+$/u
 
+  // Valida los campos de un jugador (nombre, dorsal, posición, club)
   const validarDatosJugador = (data: NewPlayer) => {
     requerido(data.name, 'El nombre')
     longitud(data.name, 'El nombre', 2, 60)
@@ -100,11 +108,13 @@ export const usePlayers = () => {
     longitud(data.club, 'El club', 2, 80)
   }
 
+  // Verifica que el equipo indicado exista en Firestore
   const equipoExiste = async (teamId: string) => {
     const snap = await getDoc(doc($firestore, 'teams', teamId))
     return snap.exists()
   }
 
+  // Obtiene los compañeros de plantilla de un equipo, excluyendo opcionalmente un id
   const jugadoresDelEquipo = async (teamId: string, excludeId?: string) => {
     const snap = await getDocs(query(playersCollection(), where('teamId', '==', teamId)))
     return snap.docs
@@ -112,6 +122,7 @@ export const usePlayers = () => {
       .map((d) => ({ id: d.id, ...(d.data() as NewPlayer) }))
   }
 
+  // Valida reglas de plantilla: dorsal libre, cupo máximo y límites de titulares
   const validarReglasDePlantilla = (
     compañeros: (NewPlayer & { id: string })[],
     data: NewPlayer,
@@ -133,6 +144,7 @@ export const usePlayers = () => {
     }
   }
 
+  // Crea un jugador validando datos, existencia del equipo, nombre único y reglas de plantilla
   const createPlayer = async (data: NewPlayer) => {
     validarDatosJugador(data)
     if (!(await equipoExiste(data.teamId))) {
@@ -147,6 +159,7 @@ export const usePlayers = () => {
     return ref.id
   }
 
+  // Actualiza un jugador validando datos, nombre único y reglas de plantilla
   const updatePlayer = async (id: string, data: Partial<NewPlayer>) => {
     const actualSnap = await getDoc(doc($firestore, 'players', id))
     if (!actualSnap.exists()) throw new ValidationError('El jugador que intentas editar ya no existe.')
@@ -166,10 +179,12 @@ export const usePlayers = () => {
     await updateDoc(doc($firestore, 'players', id), data)
   }
 
+  // Elimina un jugador de Firestore
   const deletePlayer = async (id: string) => {
     await deleteDoc(doc($firestore, 'players', id))
   }
 
+  // API pública del composable
   return {
     players,
     loading,

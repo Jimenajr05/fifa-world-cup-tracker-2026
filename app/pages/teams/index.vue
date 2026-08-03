@@ -1,30 +1,44 @@
+// Página de listado de equipos, con filtros, paginación y acciones de administración (crear, eliminar, cargar selecciones oficiales)
 <script setup lang="ts">
+// Catálogos y utilidades para cargar las selecciones oficiales en lote
 import { CONFEDERACIONES, GRUPO_POR_SELECCION, FIFA_RANKING_POR_SELECCION, SELECCIONES_REFERENCIA, urlBanderaPorCodigo, ENTRENADORES_POR_SELECCION } from '~/utils/worldCupData'
+// Extrae un mensaje de error amigable
 import { mensajeError } from '~/utils/validation'
 
+// Equipos, estado de carga y acciones CRUD
 const { teams, loading, error, fetchTeams, createTeam, deleteTeam } = useTeams()
+// Usuario autenticado (controla si se muestran acciones de administración)
 const { user } = useAuth()
+// Diálogo de confirmación para eliminar
 const { confirmar } = useConfirm()
 
+// Texto de búsqueda libre (por nombre de selección)
 const busqueda = ref('')
+// Filtro de grupo seleccionado
 const grupoFiltro = ref('')
+// Filtro de confederación seleccionada
 const confederacionFiltro = ref('')
+// Controla la visibilidad del formulario de creación
 const mostrarFormulario = ref(false)
 
+// Carga (o recarga) los equipos
 const cargar = () => fetchTeams()
 
 onMounted(cargar)
 
+// Grupos distintos presentes en los equipos cargados, para el filtro de grupo
 const grupos = computed(() => {
   const set = new Set(teams.value.map((t) => t.group).filter(Boolean))
   return Array.from(set).sort()
 })
 
+// Confederaciones distintas presentes en los equipos cargados, para el filtro de confederación
 const confederaciones = computed(() => {
   const set = new Set(teams.value.map((t) => t.confederation).filter(Boolean))
   return Array.from(set).sort()
 })
 
+// Equipos que cumplen con todos los filtros activos
 const equiposFiltrados = computed(() => {
   const texto = busqueda.value.trim().toLowerCase()
   return teams.value.filter((t) => {
@@ -35,38 +49,44 @@ const equiposFiltrados = computed(() => {
   })
 })
 
-// Paginación del listado de selecciones
+// Cantidad de equipos mostrados por página
 const EQUIPOS_POR_PAGINA = 12
+// Página actual de la lista de equipos
 const paginaActual = ref(1)
 
+// Vuelve a la primera página cuando cambia cualquier filtro
 watch([busqueda, grupoFiltro, confederacionFiltro], () => {
   paginaActual.value = 1
 })
 
+// Total de páginas según la cantidad de equipos filtrados
 const totalPaginas = computed(() =>
   Math.max(1, Math.ceil(equiposFiltrados.value.length / EQUIPOS_POR_PAGINA)),
 )
 
+// Ajusta la página actual si queda fuera de rango tras filtrar
 watch(totalPaginas, (total) => {
   if (paginaActual.value > total) paginaActual.value = total
 })
 
+// Equipos de la página actual
 const equiposPaginados = computed(() => {
   const inicio = (paginaActual.value - 1) * EQUIPOS_POR_PAGINA
   return equiposFiltrados.value.slice(inicio, inicio + EQUIPOS_POR_PAGINA)
 })
 
+// Oculta el formulario y recarga la lista tras crear un equipo
 const equipoCreado = async () => {
   mostrarFormulario.value = false
   await cargar()
 }
 
-// Carga masiva: crea de un solo click las 48 selecciones oficiales del
-// Mundial 2026 (grupo, bandera, confederación, entrenador y ranking FIFA
-// autocompletados). Omite las que ya existen por nombre.
+// Indica si se está cargando el lote de selecciones oficiales
 const cargandoLote = ref(false)
+// Mensaje con el resultado de la carga en lote
 const resultadoLote = ref('')
 
+// Crea las 48 selecciones oficiales del Mundial que aún no existan, con sus datos precargados
 const cargarSeleccionesOficiales = async () => {
   cargandoLote.value = true
   resultadoLote.value = ''
@@ -107,8 +127,10 @@ const cargarSeleccionesOficiales = async () => {
   }
 }
 
+// Mensaje de error al eliminar un equipo
 const errorEliminar = ref('')
 
+// Confirma y elimina un equipo
 const eliminarEquipo = async (id: string) => {
   const confirmado = await confirmar('¿Eliminar esta selección? Esta acción no se puede deshacer.')
   if (!confirmado) return
@@ -143,19 +165,12 @@ const eliminarEquipo = async (id: string) => {
     </header>
     <p v-if="resultadoLote" class="state-text">{{ resultadoLote }}</p>
 
-    <!-- Formulario de creación -->
     <Transition name="fade">
       <TeamForm v-if="mostrarFormulario" @created="equipoCreado" />
     </Transition>
 
-    <!-- Búsqueda y filtros -->
     <div class="teams-filters animate-slide-up delay-1">
-      <input
-        v-model="busqueda"
-        type="text"
-        class="field__input filters__search"
-        placeholder="Buscar selección..."
-      />
+      <input v-model="busqueda" type="text" class="field__input filters__search" placeholder="Buscar selección..." />
       <select v-model="grupoFiltro" class="field__input">
         <option value="">Todos los grupos</option>
         <option v-for="g in grupos" :key="g" :value="g">Grupo {{ g }}</option>
@@ -173,33 +188,25 @@ const eliminarEquipo = async (id: string) => {
       {{ equiposFiltrados.length }} selección{{ equiposFiltrados.length === 1 ? '' : 'es' }} en total
     </p>
 
-    <!-- Estado: cargando -->
     <div v-if="loading" class="state-box">
       <div class="spinner" />
       <p class="state-text">Cargando selecciones...</p>
     </div>
 
-    <!-- Estado: error -->
     <div v-else-if="error" class="state-box">
       <p class="state-text">{{ error }}</p>
       <button class="btn-refetch" @click="cargar">Reintentar</button>
     </div>
 
-    <!-- Estado: vacío -->
     <div v-else-if="equiposFiltrados.length === 0" class="state-box">
       <p class="state-text">No se encontraron selecciones con esos filtros.</p>
     </div>
 
     <p v-if="errorEliminar" class="form-error">{{ errorEliminar }}</p>
 
-    <!-- Listado -->
     <template v-else>
       <div class="teams-grid">
-        <div
-          v-for="team in equiposPaginados"
-          :key="team.id"
-          class="team-card glass animate-slide-up"
-        >
+        <div v-for="team in equiposPaginados" :key="team.id" class="team-card glass animate-slide-up">
           <NuxtLink :to="`/teams/${team.id}`" class="team-card__link">
             <img v-if="team.flag" :src="team.flag" :alt="team.name" class="team-card__flag" />
             <span v-else class="team-card__flag team-card__flag--fallback">🏳️</span>
@@ -314,7 +321,6 @@ select.field__input {
   font-size: 0.85rem;
 }
 
-/* Filters */
 .teams-filters {
   display: flex;
   gap: var(--space-md);
@@ -352,7 +358,6 @@ select.field__input {
   border-color: var(--border-glass);
 }
 
-/* States */
 .state-box {
   display: flex;
   flex-direction: column;
@@ -376,7 +381,6 @@ select.field__input {
   animation: spin 0.8s linear infinite;
 }
 
-/* Grid */
 .teams-grid {
   display: grid;
   grid-template-columns: repeat(auto-fill, minmax(260px, 1fr));

@@ -1,17 +1,25 @@
+// Página de inicio, mostrando un resumen del torneo si el usuario está autenticado, o tarjetas informativas si no lo está
 <script setup lang="ts">
+// Usuario, perfil y acción de login con Google
 const { user, perfil, loginWithGoogle } = useAuth()
+// Resumen del dashboard (métricas generales del torneo)
 const { resumen, loading: cargandoDashboard, error: errorDashboard, cargarDashboard } = useDashboard()
 
+// Indica si la imagen de avatar falló al cargar
 const imgError = ref(false)
+// URL de la foto de perfil: prioriza la de Firestore, luego la de Firebase Auth
 const fotoUrl = computed(() => perfil.value?.foto || user.value?.photoURL || '')
+// Reinicia el estado de error cada vez que cambia la URL de la foto
 watch(fotoUrl, () => {
   imgError.value = false
 })
+// Inicial del nombre del usuario, usada como avatar de respaldo
 const iniciales = computed(() => {
   const base = perfil.value?.nombre || user.value?.displayName || user.value?.email || ''
   return base.trim().charAt(0).toUpperCase() || '?'
 })
 
+// Tarjetas informativas mostradas a usuarios sin sesión iniciada
 const features = [
   {
     title: 'Selección Favorita',
@@ -27,6 +35,7 @@ const features = [
   },
 ]
 
+// Tarjetas de estadísticas del dashboard, derivadas del resumen cargado
 const tarjetas = computed(() => {
   if (!resumen.value) return []
   return [
@@ -38,6 +47,7 @@ const tarjetas = computed(() => {
   ]
 })
 
+// Carga el dashboard apenas hay un usuario autenticado (incluye la carga inicial)
 watch(user, (u) => {
   if (u) cargarDashboard()
 }, { immediate: true })
@@ -45,9 +55,7 @@ watch(user, (u) => {
 
 <template>
   <div class="home">
-    <!-- ── Hero ───────────────────────────────────────────── -->
     <section class="hero animate-slide-up">
-      <!-- Decorative orbs -->
       <div class="hero__orb hero__orb--1" />
       <div class="hero__orb hero__orb--2" />
 
@@ -66,31 +74,28 @@ watch(user, (u) => {
           haz predicciones y no te pierdas ni un gol.
         </p>
 
-        <!-- Not logged in -->
         <div v-if="!user" class="hero__actions animate-slide-up delay-3">
           <button class="btn-google" @click="loginWithGoogle">
             <svg class="btn-google__icon" viewBox="0 0 48 48" width="20" height="20">
-              <path fill="#EA4335" d="M24 9.5c3.54 0 6.71 1.22 9.21 3.6l6.85-6.85C35.9 2.38 30.47 0 24 0 14.62 0 6.51 5.38 2.56 13.22l7.98 6.19C12.43 13.72 17.74 9.5 24 9.5z"/>
-              <path fill="#4285F4" d="M46.98 24.55c0-1.57-.15-3.09-.38-4.55H24v9.02h12.94c-.58 2.96-2.26 5.48-4.78 7.18l7.73 6c4.51-4.18 7.09-10.36 7.09-17.65z"/>
-              <path fill="#FBBC05" d="M10.53 28.59c-.48-1.45-.76-2.99-.76-4.59s.27-3.14.76-4.59l-7.98-6.19C.92 16.46 0 20.12 0 24c0 3.88.92 7.54 2.56 10.78l7.97-6.19z"/>
-              <path fill="#34A853" d="M24 48c6.48 0 11.93-2.13 15.89-5.81l-7.73-6c-2.15 1.45-4.92 2.3-8.16 2.3-6.26 0-11.57-4.22-13.47-9.91l-7.98 6.19C6.51 42.62 14.62 48 24 48z"/>
+              <path fill="#EA4335"
+                d="M24 9.5c3.54 0 6.71 1.22 9.21 3.6l6.85-6.85C35.9 2.38 30.47 0 24 0 14.62 0 6.51 5.38 2.56 13.22l7.98 6.19C12.43 13.72 17.74 9.5 24 9.5z" />
+              <path fill="#4285F4"
+                d="M46.98 24.55c0-1.57-.15-3.09-.38-4.55H24v9.02h12.94c-.58 2.96-2.26 5.48-4.78 7.18l7.73 6c4.51-4.18 7.09-10.36 7.09-17.65z" />
+              <path fill="#FBBC05"
+                d="M10.53 28.59c-.48-1.45-.76-2.99-.76-4.59s.27-3.14.76-4.59l-7.98-6.19C.92 16.46 0 20.12 0 24c0 3.88.92 7.54 2.56 10.78l7.97-6.19z" />
+              <path fill="#34A853"
+                d="M24 48c6.48 0 11.93-2.13 15.89-5.81l-7.73-6c-2.15 1.45-4.92 2.3-8.16 2.3-6.26 0-11.57-4.22-13.47-9.91l-7.98 6.19C6.51 42.62 14.62 48 24 48z" />
             </svg>
             Iniciar sesión con Google
           </button>
           <p class="hero__hint">Gratis · Sin registro extra · Solo tu cuenta de Google</p>
         </div>
 
-        <!-- Logged in -->
         <div v-else class="hero__welcome animate-scale-in">
           <div class="hero__welcome-card glass">
             <div class="hero__welcome-avatar">
-              <img
-                v-if="fotoUrl && !imgError"
-                :src="fotoUrl"
-                :alt="perfil?.nombre || user.displayName || ''"
-                referrerpolicy="no-referrer"
-                @error="imgError = true"
-              />
+              <img v-if="fotoUrl && !imgError" :src="fotoUrl" :alt="perfil?.nombre || user.displayName || ''"
+                referrerpolicy="no-referrer" @error="imgError = true" />
               <span v-else class="hero__welcome-avatar-fallback">
                 {{ iniciales }}
               </span>
@@ -106,7 +111,6 @@ watch(user, (u) => {
       </div>
     </section>
 
-    <!-- ── Dashboard (usuario con sesión iniciada) ─────────── -->
     <section v-if="user" class="dashboard">
       <div class="dashboard__header">
         <h2 class="dashboard__title">
@@ -117,25 +121,22 @@ watch(user, (u) => {
         </button>
       </div>
 
-      <!-- Estado: cargando -->
       <div v-if="cargandoDashboard" class="state-box">
         <div class="spinner" />
         <p class="state-text">Calculando indicadores...</p>
       </div>
 
-      <!-- Estado: error -->
       <div v-else-if="errorDashboard" class="state-box">
         <p class="state-text">{{ errorDashboard }}</p>
         <button class="btn-refetch" @click="cargarDashboard">Reintentar</button>
       </div>
 
-      <!-- Estado: vacío -->
-      <div v-else-if="!resumen || (resumen.partidosJugados === 0 && resumen.partidosPendientes === 0)" class="state-box">
+      <div v-else-if="!resumen || (resumen.partidosJugados === 0 && resumen.partidosPendientes === 0)"
+        class="state-box">
         <p class="state-text">Todavía no hay partidos registrados para mostrar indicadores.</p>
         <NuxtLink to="/matches" class="btn-refetch">Ir a partidos</NuxtLink>
       </div>
 
-      <!-- Contenido -->
       <template v-else>
         <div class="stats-grid">
           <div v-for="t in tarjetas" :key="t.etiqueta" class="stat-card glass animate-slide-up">
@@ -161,20 +162,14 @@ watch(user, (u) => {
       </template>
     </section>
 
-    <!-- ── Features (usuario sin sesión) ───────────────────── -->
     <section v-else class="features">
-      <div
-        v-for="(feat, i) in features"
-        :key="feat.title"
-        class="feature-card glass animate-slide-up"
-        :class="`delay-${i + 2}`"
-      >
+      <div v-for="(feat, i) in features" :key="feat.title" class="feature-card glass animate-slide-up"
+        :class="`delay-${i + 2}`">
         <h3 class="feature-card__title">{{ feat.title }}</h3>
         <p class="feature-card__desc">{{ feat.desc }}</p>
       </div>
     </section>
 
-    <!-- ── Decorative Stadium Silhouette ──────────────────── -->
     <div class="home__decor animate-fade-in delay-5">
       <div class="home__decor-line" />
       <span class="home__decor-text">48 selecciones · 104 partidos · 16 sedes</span>
@@ -184,7 +179,6 @@ watch(user, (u) => {
 </template>
 
 <style scoped>
-/* ── Home Layout ───────────────────────────────────────────── */
 .home {
   display: flex;
   flex-direction: column;
@@ -192,7 +186,6 @@ watch(user, (u) => {
   gap: var(--space-3xl);
 }
 
-/* ── Hero Section ──────────────────────────────────────────── */
 .hero {
   position: relative;
   width: 100%;
@@ -201,7 +194,6 @@ watch(user, (u) => {
   overflow: hidden;
 }
 
-/* Decorative floating orbs */
 .hero__orb {
   position: absolute;
   border-radius: 50%;
@@ -235,7 +227,6 @@ watch(user, (u) => {
   margin: 0 auto;
 }
 
-/* Badge */
 .hero__badge {
   display: inline-block;
   padding: 6px 16px;
@@ -249,7 +240,6 @@ watch(user, (u) => {
   margin-bottom: var(--space-lg);
 }
 
-/* Title */
 .hero__title {
   font-size: clamp(2.2rem, 5vw, 3.5rem);
   font-weight: 900;
@@ -258,7 +248,6 @@ watch(user, (u) => {
   margin-bottom: var(--space-lg);
 }
 
-/* Subtitle */
 .hero__subtitle {
   font-size: 1.05rem;
   line-height: 1.7;
@@ -267,7 +256,6 @@ watch(user, (u) => {
   margin: 0 auto var(--space-xl);
 }
 
-/* ── Google Button ─────────────────────────────────────────── */
 .hero__actions {
   display: flex;
   flex-direction: column;
@@ -296,12 +284,10 @@ watch(user, (u) => {
   content: '';
   position: absolute;
   inset: 0;
-  background: linear-gradient(
-    90deg,
-    transparent 0%,
-    rgba(255, 214, 10, 0.08) 50%,
-    transparent 100%
-  );
+  background: linear-gradient(90deg,
+      transparent 0%,
+      rgba(255, 214, 10, 0.08) 50%,
+      transparent 100%);
   background-size: 200% 100%;
   animation: shimmer 3s ease-in-out infinite;
   pointer-events: none;
@@ -327,7 +313,6 @@ watch(user, (u) => {
   color: var(--text-muted);
 }
 
-/* ── Welcome Card ──────────────────────────────────────────── */
 .hero__welcome-card {
   display: flex;
   align-items: center;
@@ -371,7 +356,6 @@ watch(user, (u) => {
   color: var(--text-secondary);
 }
 
-/* ── Dashboard ─────────────────────────────────────────────── */
 .dashboard {
   display: flex;
   flex-direction: column;
@@ -516,7 +500,6 @@ watch(user, (u) => {
   margin-top: 2px;
 }
 
-/* ── Feature Cards ─────────────────────────────────────────── */
 .features {
   display: grid;
   grid-template-columns: repeat(auto-fit, minmax(260px, 1fr));
@@ -529,7 +512,7 @@ watch(user, (u) => {
   border-radius: var(--radius-lg);
   text-align: center;
   transition: transform var(--transition-base), box-shadow var(--transition-base),
-              border-color var(--transition-base);
+    border-color var(--transition-base);
 }
 
 .feature-card:hover {
@@ -566,7 +549,6 @@ watch(user, (u) => {
   color: var(--text-secondary);
 }
 
-/* ── Decorative Footer Line ────────────────────────────────── */
 .home__decor {
   display: flex;
   align-items: center;
@@ -578,12 +560,10 @@ watch(user, (u) => {
 .home__decor-line {
   flex: 1;
   height: 1px;
-  background: linear-gradient(
-    90deg,
-    transparent,
-    var(--border-glass),
-    transparent
-  );
+  background: linear-gradient(90deg,
+      transparent,
+      var(--border-glass),
+      transparent);
 }
 
 .home__decor-text {
@@ -594,7 +574,6 @@ watch(user, (u) => {
   letter-spacing: 0.02em;
 }
 
-/* ── Responsive ────────────────────────────────────────────── */
 @media (max-width: 768px) {
   .hero {
     padding: var(--space-xl) 0;

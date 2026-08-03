@@ -1,6 +1,4 @@
-// Fixture de la fase de grupos y fases eliminatorias del Mundial 2026 (104 partidos).
-// Autogenerado a partir de la lista oficial provista por el usuario con goles e índices de bracket incorporados.
-
+// Fixture de la fase de grupos y fases eliminatorias del Mundial 2026 (104 partidos)
 export interface FixturePartido {
   homeTeam: string
   awayTeam: string

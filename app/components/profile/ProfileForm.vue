@@ -1,31 +1,46 @@
+// Catálogo de nombres de selecciones para el select de favorita
 <script setup lang="ts">
+// Catálogo de nombres de selecciones para el select de favorita
 import { nombresSelecciones } from '~/utils/worldCupData'
+// Extrae un mensaje de error amigable
 import { mensajeError } from '~/utils/validation'
 
+// Valores iniciales del perfil, para precargar el formulario
 const props = defineProps<{
   nombreInicial: string
   seleccionInicial: string | null
   fotoInicial?: string | null
 }>()
 
+// Acción de actualización de perfil
 const { actualizarPerfil } = useAuth()
 
+// Nombre editable del usuario
 const nombreEditable = ref(props.nombreInicial)
+// Selección favorita editable
 const seleccionEditable = ref<string | null>(props.seleccionInicial)
+// Foto de perfil editable (URL o data URI generado desde un archivo)
 const fotoEditable = ref(props.fotoInicial ?? '')
+// Indica si se están guardando los cambios
 const guardando = ref(false)
+// Controla la visibilidad del mensaje de éxito temporal
 const mensajeExito = ref(false)
+// Mensaje de error del formulario
 const errorPerfil = ref('')
+// Referencia al input de archivo oculto, para el botón "Subir imagen"
 const fileInput = ref<HTMLInputElement | null>(null)
 
+// Sincroniza los campos editables si los valores iniciales cambian desde el padre
 watch(() => props.nombreInicial, (valor) => { nombreEditable.value = valor })
 watch(() => props.seleccionInicial, (valor) => { seleccionEditable.value = valor })
 watch(() => props.fotoInicial, (valor) => { fotoEditable.value = valor ?? '' })
 
+// Abre el selector de archivos del sistema
 const triggerFileInput = () => {
   fileInput.value?.click()
 }
 
+// Lee el archivo de imagen elegido, lo redimensiona a máximo 256px y lo guarda como data URI
 const onFileSelected = (event: Event) => {
   const input = event.target as HTMLInputElement
   const file = input.files?.[0]
@@ -68,6 +83,7 @@ const onFileSelected = (event: Event) => {
   reader.readAsDataURL(file)
 }
 
+// Guarda los cambios del perfil (nombre, selección favorita y foto)
 const guardarCambios = async () => {
   guardando.value = true
   mensajeExito.value = false
@@ -95,14 +111,7 @@ const guardarCambios = async () => {
       <label for="nombre" class="field__label">
         Nombre
       </label>
-      <input
-        id="nombre"
-        v-model="nombreEditable"
-        type="text"
-        placeholder="Tu nombre"
-        required
-        class="field__input"
-      />
+      <input id="nombre" v-model="nombreEditable" type="text" placeholder="Tu nombre" required class="field__input" />
     </div>
 
     <div class="field">
@@ -110,25 +119,10 @@ const guardarCambios = async () => {
         Foto de perfil
       </label>
       <div class="photo-input-group">
-        <input
-          v-model="fotoEditable"
-          type="url"
-          placeholder="URL de tu foto de perfil (https://...)"
-          class="field__input photo-url-input"
-        />
-        <input
-          ref="fileInput"
-          type="file"
-          accept="image/*"
-          class="hidden-file-input"
-          @change="onFileSelected"
-        />
-        <button
-          type="button"
-          class="btn-upload"
-          @click="triggerFileInput"
-          title="Subir imagen desde tu dispositivo"
-        >
+        <input v-model="fotoEditable" type="url" placeholder="URL de tu foto de perfil (https://...)"
+          class="field__input photo-url-input" />
+        <input ref="fileInput" type="file" accept="image/*" class="hidden-file-input" @change="onFileSelected" />
+        <button type="button" class="btn-upload" @click="triggerFileInput" title="Subir imagen desde tu dispositivo">
           📷 Subir imagen
         </button>
       </div>
@@ -150,10 +144,11 @@ const guardarCambios = async () => {
     <p v-if="errorPerfil" class="form-error">{{ errorPerfil }}</p>
     <button type="submit" class="save-btn" :disabled="guardando">
       <span v-if="guardando" class="btn-spinner" />
-      <svg v-else width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
-        <path d="M19 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11l5 5v11a2 2 0 0 1-2 2z"/>
-        <polyline points="17 21 17 13 7 13 7 21"/>
-        <polyline points="7 3 7 8 15 8"/>
+      <svg v-else width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"
+        stroke-linecap="round" stroke-linejoin="round">
+        <path d="M19 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11l5 5v11a2 2 0 0 1-2 2z" />
+        <polyline points="17 21 17 13 7 13 7 21" />
+        <polyline points="7 3 7 8 15 8" />
       </svg>
       {{ guardando ? 'Guardando...' : 'Guardar cambios' }}
     </button>
@@ -238,7 +233,7 @@ const guardarCambios = async () => {
   color: var(--text-primary);
   background: var(--bg-surface);
   transition: border-color var(--transition-fast), box-shadow var(--transition-fast),
-              background var(--transition-fast);
+    background var(--transition-fast);
   appearance: none;
   -webkit-appearance: none;
 }
@@ -289,12 +284,10 @@ select.field__input {
   content: '';
   position: absolute;
   inset: 0;
-  background: linear-gradient(
-    90deg,
-    transparent 0%,
-    rgba(255, 255, 255, 0.2) 50%,
-    transparent 100%
-  );
+  background: linear-gradient(90deg,
+      transparent 0%,
+      rgba(255, 255, 255, 0.2) 50%,
+      transparent 100%);
   background-size: 200% 100%;
   animation: shimmer 3s ease-in-out infinite;
   pointer-events: none;

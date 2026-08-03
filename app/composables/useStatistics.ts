@@ -1,21 +1,27 @@
+// Composable para calcular estadísticas generales del torneo a partir de partidos finalizados
+// Consultas de solo lectura a Firestore
 import { collection, getDocs, query, where } from 'firebase/firestore'
+// Tipo de partido
 import type { Match } from './useMatches'
 
+// Estadísticas acumuladas de un equipo
 export interface EstadisticaEquipo {
   teamName: string
   partidosJugados: number
   victorias: number
   golesAFavor: number
   golesEnContra: number
-  porcentajeVictorias: number // 0-100
+  porcentajeVictorias: number
 }
 
+// Estadísticas acumuladas de un goleador
 export interface EstadisticaGoleador {
   playerId: string
   playerName: string
   goles: number
 }
 
+// Resumen general de estadísticas del torneo
 export interface EstadisticasGenerales {
   partidosDisputados: number
   golesTotales: number
@@ -26,15 +32,18 @@ export interface EstadisticasGenerales {
   tablaEquipos: EstadisticaEquipo[]
 }
 
+// Composable que calcula estadísticas generales del torneo a partir de partidos finalizados
 export const useStatistics = () => {
   const { db: $firestore } = useFirestore()
 
+  // Estadísticas generales calculadas
   const estadisticas = useState<EstadisticasGenerales | null>('estadisticas', () => null)
+  // Indica si las estadísticas se están calculando
   const loading = useState<boolean>('estadisticasLoading', () => false)
+  // Mensaje de error al calcular estadísticas
   const error = useState<string | null>('estadisticasError', () => null)
 
-  // Calcula todas las estadísticas a partir de los partidos ya finalizados.
-  // No se guarda nada en Firestore: se deriva en el momento, igual que useStandings.
+  // Calcula estadísticas por equipo, goleadores y totales a partir de los partidos finalizados
   const calcularEstadisticas = async () => {
     loading.value = true
     error.value = null
@@ -43,6 +52,7 @@ export const useStatistics = () => {
       const snap = await getDocs(q)
       const partidos = snap.docs.map((d) => ({ id: d.id, ...(d.data() as Omit<Match, 'id'>) }))
 
+      // Mapa de estadísticas por nombre de equipo, creando la entrada la primera vez que se usa
       const porEquipo = new Map<string, EstadisticaEquipo>()
       const obtenerEquipo = (nombre: string): EstadisticaEquipo => {
         if (!porEquipo.has(nombre)) {
@@ -58,9 +68,11 @@ export const useStatistics = () => {
         return porEquipo.get(nombre)!
       }
 
+      // Acumuladores de estadísticas generales
       let golesTotales = 0
       const golesPorJugador = new Map<string, EstadisticaGoleador>()
 
+      // Recorre cada partido finalizado acumulando estadísticas de equipos y goleadores
       for (const partido of partidos) {
         if (partido.homeScore === null || partido.awayScore === null) continue
 
@@ -90,11 +102,13 @@ export const useStatistics = () => {
         }
       }
 
+      // Calcula el porcentaje de victorias de cada equipo
       const tablaEquipos = [...porEquipo.values()].map((e) => ({
         ...e,
         porcentajeVictorias: e.partidosJugados > 0 ? Math.round((e.victorias / e.partidosJugados) * 100) : 0,
       }))
 
+      // Determina el equipo con más goles a favor, el menos goleado y el máximo goleador
       const seleccionMasGoles = [...tablaEquipos].sort((a, b) => b.golesAFavor - a.golesAFavor)[0] ?? null
       const seleccionMenosGoleada = tablaEquipos.length > 0
         ? ([...tablaEquipos].sort((a, b) => a.golesEnContra - b.golesEnContra)[0] ?? null)
@@ -118,11 +132,7 @@ export const useStatistics = () => {
     }
   }
 
-  // Devuelve un mapa playerId -> total de goles, sumando los "scorers" de
-  // todos los partidos finalizados. Se usa en las pantallas de plantilla
-  // (teams/[id]/players.vue y players/index.vue) para mostrar el campo
-  // "Goles" del jugador de forma automática y de solo lectura, sin
-  // duplicar el dato en el documento del jugador.
+  // Obtiene un mapa de goles totales anotados por cada jugador en partidos finalizados
   const obtenerGolesPorJugador = async (): Promise<Map<string, number>> => {
     const q = query(collection($firestore, 'matches'), where('status', '==', 'Finalizado'))
     const snap = await getDocs(q)
@@ -136,6 +146,7 @@ export const useStatistics = () => {
     return mapa
   }
 
+  // API pública del composable
   return {
     estadisticas,
     loading,

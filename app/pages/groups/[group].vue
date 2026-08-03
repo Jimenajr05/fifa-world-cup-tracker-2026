@@ -1,18 +1,26 @@
+// Página de detalle de un grupo, mostrando la tabla de posiciones y los partidos del grupo.
 <script setup lang="ts">
+// Ruta actual, para leer el parámetro de grupo
 const route = useRoute()
+// Letra del grupo (en mayúsculas) tomada de la URL
 const group = computed(() => (route.params.group as string).toUpperCase())
 
+// Tabla de posiciones del grupo
 const { standings, loading, error, fetchStandings } = useStandings()
+// Partidos de fase de grupos correspondientes a este grupo
 const { matches, loading: cargandoPartidos, error: errorPartidos, fetchMatches } = useMatches()
 
+// Carga la tabla de posiciones y los partidos del grupo actual
 const cargar = () => {
   fetchStandings(group.value)
   fetchMatches({ stage: 'Fase de grupos', group: group.value })
 }
 
 onMounted(cargar)
+// Recarga los datos si cambia el grupo (navegación entre grupos)
 watch(group, cargar)
 
+// Formatea un Timestamp de Firestore como fecha y hora corta en español
 const formatearFecha = (ts: { toDate: () => Date }) =>
   ts.toDate().toLocaleString('es', { day: '2-digit', month: 'short', hour: '2-digit', minute: '2-digit' })
 </script>
@@ -28,7 +36,6 @@ const formatearFecha = (ts: { toDate: () => Date }) =>
       <button class="btn-refetch" @click="cargar">Actualizar</button>
     </header>
 
-    <!-- ── Tabla de posiciones ─────────────────────────────── -->
     <section class="section glass animate-slide-up delay-1">
       <h2 class="section__title">Tabla de posiciones</h2>
 
@@ -82,7 +89,6 @@ const formatearFecha = (ts: { toDate: () => Date }) =>
       </div>
     </section>
 
-    <!-- ── Partidos del grupo ──────────────────────────────── -->
     <section class="section glass animate-slide-up delay-2">
       <h2 class="section__title">Partidos del grupo</h2>
 
@@ -195,7 +201,7 @@ const formatearFecha = (ts: { toDate: () => Date }) =>
   animation: spin 0.8s linear infinite;
 }
 
-/* Table */
+
 .table-wrapper {
   overflow-x: auto;
 }
@@ -259,7 +265,6 @@ th.col-team {
   color: var(--text-muted);
 }
 
-/* Matches */
 .matches-list {
   display: flex;
   flex-direction: column;

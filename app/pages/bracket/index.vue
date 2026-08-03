@@ -1,15 +1,25 @@
+// Componente de la página de bracket (eliminatorias) del Mundial 2026
 <script setup lang="ts">
+// Tipo de partido
 import type { Match } from '~/composables/useMatches'
+// Catálogo de grupos y utilidades para banderas
 import { GRUPOS, buscarSeleccionPorNombre, urlBanderaPorCodigo } from '~/utils/worldCupData'
 
+// Rondas, estado y acciones del bracket de eliminatorias
 const { RONDAS, generando, error, generarDieciseisavos, fetchRonda } = useBracket()
+// Usuario autenticado (solo admins/logueados pueden generar el bracket)
 const { user } = useAuth()
+// Equipos registrados, usados para mostrar banderas por grupo
 const { teams, fetchTeams } = useTeams()
 
+// Partidos agrupados por ronda (columnas del árbol de eliminación)
 const columnas = ref<{ ronda: string; partidos: Match[] }[]>([])
+// Indica si el bracket se está cargando
 const loadingBracket = ref(false)
+// Mensaje de error al cargar el bracket
 const errorCarga = ref('')
 
+// Carga los partidos de cada ronda (incluyendo el de tercer lugar)
 const cargarBracket = async () => {
   loadingBracket.value = true
   errorCarga.value = ''
@@ -34,22 +44,24 @@ onMounted(() => {
   fetchTeams()
 })
 
+// Indica si ya se generaron los Dieciseisavos (para mostrar/ocultar el botón de generar)
 const hayDieciseisavos = computed(() =>
   columnas.value.find((c) => c.ronda === 'Dieciseisavos')?.partidos.length,
 )
 
+// Genera los Dieciseisavos y recarga el bracket
 const generar = async () => {
   await generarDieciseisavos()
   await cargarBracket()
 }
 
+// Nombre a mostrar de un equipo (pasa "Por definir" tal cual)
 const nombreEquipo = (nombre: string) => (nombre === 'Por definir' ? 'Por definir' : nombre)
 
-// Divide cada ronda (menos Final) en mitad izquierda/derecha del cuadro,
-// usando bracketPosition: las posiciones bajas alimentan la mitad izquierda,
-// las altas la derecha. Como el avance del bracket respeta ese mismo orden
-// ronda tras ronda, la división se mantiene consistente hasta la Semifinal.
+// Lado del árbol de eliminación en el que se dibuja cada ronda
 type Lado = 'izquierda' | 'derecha'
+// Construye las rondas (sin la Final) filtrando los partidos que caen en un lado del árbol,
+// según su posición en el bracket
 const construirMitad = (lado: Lado) => {
   const rondasSinFinal = RONDAS.filter((r) => r !== 'Final')
   return rondasSinFinal.map((ronda) => {
@@ -63,22 +75,27 @@ const construirMitad = (lado: Lado) => {
   })
 }
 
-// Izquierda: Dieciseisavos → Semifinal (se va acercando al centro)
+// Rondas del lado izquierdo del árbol
 const mitadIzquierda = computed(() => construirMitad('izquierda'))
-// Derecha: Semifinal → Dieciseisavos (espejo, para que el centro quede junto a la Final)
+
+// Rondas del lado derecho del árbol (invertidas para dibujarse en espejo)
 const mitadDerecha = computed(() => [...construirMitad('derecha')].reverse())
 
+// Partido de la Final
 const finalMatch = computed(() => columnas.value.find((c) => c.ronda === 'Final')?.partidos[0] ?? null)
+// Partido por el tercer lugar
 const tercerLugarMatch = computed(() => columnas.value.find((c) => c.ronda === 'Tercer lugar')?.partidos[0] ?? null)
 
+// Equipo campeón, determinado por el ganador de la Final (si ya finalizó)
 const campeon = computed(() => {
   if (!finalMatch.value || finalMatch.value.status !== 'Finalizado') return null
   if (finalMatch.value.homeScore === null || finalMatch.value.awayScore === null) return null
   return finalMatch.value.homeScore > finalMatch.value.awayScore ? finalMatch.value.homeTeam : finalMatch.value.awayTeam
 })
 
-// ── Bandera de un equipo dado su nombre (usada en las tarjetas de partido) ──
+// Mapa de equipos registrados por nombre, para buscar su bandera rápidamente
 const equipoPorNombre = computed(() => new Map(teams.value.map((t) => [t.name, t])))
+// Obtiene la URL de la bandera de un equipo, buscando primero en los registrados y luego en el catálogo
 const banderaEquipo = (nombre: string): string | null => {
   if (!nombre || nombre === 'Por definir') return null
   const equipo = equipoPorNombre.value.get(nombre)
@@ -87,8 +104,7 @@ const banderaEquipo = (nombre: string): string | null => {
   return seleccion ? urlBanderaPorCodigo(seleccion.code) : null
 }
 
-// ── Paneles de grupos (decorativos) a los costados del bracket, como en el
-// cuadro oficial: cada grupo con su color y las banderas de sus 4 equipos.
+// Color distintivo asignado a cada grupo, usado en las tarjetas de grupo del bracket
 const COLORES_GRUPO: Record<string, string> = {
   A: '#22c55e',
   B: '#ef4444',
@@ -104,6 +120,7 @@ const COLORES_GRUPO: Record<string, string> = {
   L: '#eab308',
 }
 
+// Grupos con sus equipos y color asignado, para las tarjetas laterales del bracket
 const gruposConEquipos = computed(() =>
   GRUPOS.map((letra) => ({
     letra,
@@ -111,7 +128,9 @@ const gruposConEquipos = computed(() =>
     equipos: teams.value.filter((t) => t.group === letra),
   })),
 )
+// Primeros 6 grupos, mostrados en la columna izquierda
 const gruposIzquierda = computed(() => gruposConEquipos.value.slice(0, 6))
+// Últimos 6 grupos, mostrados en la columna derecha
 const gruposDerecha = computed(() => gruposConEquipos.value.slice(6, 12))
 </script>
 
@@ -128,12 +147,7 @@ const gruposDerecha = computed(() => gruposConEquipos.value.slice(6, 12))
         <button class="btn-refetch" :disabled="loadingBracket" @click="cargarBracket">
           Actualizar
         </button>
-        <button
-          v-if="user && !hayDieciseisavos"
-          class="btn-add"
-          :disabled="generando"
-          @click="generar"
-        >
+        <button v-if="user && !hayDieciseisavos" class="btn-add" :disabled="generando" @click="generar">
           {{ generando ? 'Generando...' : 'Generar Dieciseisavos' }}
         </button>
       </div>
@@ -141,67 +155,51 @@ const gruposDerecha = computed(() => gruposConEquipos.value.slice(6, 12))
 
     <p v-if="error" class="form-error">{{ error }}</p>
 
-    <!-- Estado: cargando -->
     <div v-if="loadingBracket" class="state-box">
       <div class="spinner" />
       <p class="state-text">Cargando bracket...</p>
     </div>
 
-    <!-- Estado: error -->
     <div v-else-if="errorCarga" class="state-box">
       <p class="state-text">{{ errorCarga }}</p>
       <button class="btn-refetch" @click="cargarBracket">Reintentar</button>
     </div>
 
-    <!-- Estado: vacío -->
     <div v-else-if="!hayDieciseisavos" class="state-box">
       <p class="state-text">
-        Todavía no se ha generado el bracket. Necesitas la fase de grupos completa (32 clasificados) antes de generar Dieciseisavos.
+        Todavía no se ha generado el bracket. Necesitas la fase de grupos completa (32 clasificados) antes de generar
+        Dieciseisavos.
       </p>
     </div>
 
-    <!-- Cuadro completo -->
     <div v-else class="bracket-tree">
-      <!-- Columna de grupos A-F -->
       <div class="groups-col">
-        <div
-          v-for="grupo in gruposIzquierda"
-          :key="`g-${grupo.letra}`"
-          class="group-box"
-          :style="{ '--group-color': grupo.color }"
-        >
+        <div v-for="grupo in gruposIzquierda" :key="`g-${grupo.letra}`" class="group-box"
+          :style="{ '--group-color': grupo.color }">
           <div class="group-box__flags">
-            <img
-              v-for="equipo in grupo.equipos"
-              :key="equipo.id"
-              :src="equipo.flag"
-              :alt="equipo.name"
-              class="group-box__flag"
-            />
+            <img v-for="equipo in grupo.equipos" :key="equipo.id" :src="equipo.flag" :alt="equipo.name"
+              class="group-box__flag" />
           </div>
           <span class="group-box__label">Grupo {{ grupo.letra }}</span>
         </div>
       </div>
 
-      <!-- Mitad izquierda -->
       <div class="bracket-half">
         <div v-for="grupo in mitadIzquierda" :key="`i-${grupo.ronda}`" class="bracket-round">
           <span class="bracket-round__label">{{ grupo.ronda }}</span>
           <div class="bracket-round__matches">
-            <NuxtLink
-              v-for="partido in grupo.partidos"
-              :key="partido.id"
-              :to="`/matches/${partido.id}`"
-              class="bracket-match glass"
-            >
+            <NuxtLink v-for="partido in grupo.partidos" :key="partido.id" :to="`/matches/${partido.id}`"
+              class="bracket-match glass">
               <div class="bracket-match__row">
-                <img v-if="banderaEquipo(partido.homeTeam)" :src="banderaEquipo(partido.homeTeam)!" class="bracket-match__flag" alt="" />
+                <img v-if="banderaEquipo(partido.homeTeam)" :src="banderaEquipo(partido.homeTeam)!"
+                  class="bracket-match__flag" alt="" />
                 <span v-else class="bracket-match__flag bracket-match__flag--empty">🏳️</span>
                 <span class="bracket-match__team">{{ nombreEquipo(partido.homeTeam) }}</span>
                 <span class="bracket-match__score">{{ partido.homeScore ?? '-' }}</span>
               </div>
               <div class="bracket-match__row">
-                <img v-if="banderaEquipo(partido.awayTeam)" :src="banderaEquipo(partido.awayTeam)!" class="bracket-match__flag" alt="" />
+                <img v-if="banderaEquipo(partido.awayTeam)" :src="banderaEquipo(partido.awayTeam)!"
+                  class="bracket-match__flag" alt="" />
                 <span v-else class="bracket-match__flag bracket-match__flag--empty">🏳️</span>
                 <span class="bracket-match__team">{{ nombreEquipo(partido.awayTeam) }}</span>
                 <span class="bracket-match__score">{{ partido.awayScore ?? '-' }}</span>
@@ -211,7 +209,6 @@ const gruposDerecha = computed(() => gruposConEquipos.value.slice(6, 12))
         </div>
       </div>
 
-      <!-- Centro: Campeón + Trofeo + Final + Tercer lugar + Logo FIFA 2026 -->
       <div class="bracket-center">
         <h2 class="world-champions-heading">WORLD CHAMPIONS</h2>
 
@@ -226,13 +223,15 @@ const gruposDerecha = computed(() => gruposConEquipos.value.slice(6, 12))
           <span class="bracket-round__label">Final</span>
           <NuxtLink :to="`/matches/${finalMatch.id}`" class="bracket-match bracket-match--final glass-strong">
             <div class="bracket-match__row">
-              <img v-if="banderaEquipo(finalMatch.homeTeam)" :src="banderaEquipo(finalMatch.homeTeam)!" class="bracket-match__flag" alt="" />
+              <img v-if="banderaEquipo(finalMatch.homeTeam)" :src="banderaEquipo(finalMatch.homeTeam)!"
+                class="bracket-match__flag" alt="" />
               <span v-else class="bracket-match__flag bracket-match__flag--empty">🏳️</span>
               <span class="bracket-match__team">{{ nombreEquipo(finalMatch.homeTeam) }}</span>
               <span class="bracket-match__score">{{ finalMatch.homeScore ?? '-' }}</span>
             </div>
             <div class="bracket-match__row">
-              <img v-if="banderaEquipo(finalMatch.awayTeam)" :src="banderaEquipo(finalMatch.awayTeam)!" class="bracket-match__flag" alt="" />
+              <img v-if="banderaEquipo(finalMatch.awayTeam)" :src="banderaEquipo(finalMatch.awayTeam)!"
+                class="bracket-match__flag" alt="" />
               <span v-else class="bracket-match__flag bracket-match__flag--empty">🏳️</span>
               <span class="bracket-match__team">{{ nombreEquipo(finalMatch.awayTeam) }}</span>
               <span class="bracket-match__score">{{ finalMatch.awayScore ?? '-' }}</span>
@@ -244,13 +243,15 @@ const gruposDerecha = computed(() => gruposConEquipos.value.slice(6, 12))
           <span class="bracket-round__label">BRONZE WINNER</span>
           <NuxtLink :to="`/matches/${tercerLugarMatch.id}`" class="bracket-match glass">
             <div class="bracket-match__row">
-              <img v-if="banderaEquipo(tercerLugarMatch.homeTeam)" :src="banderaEquipo(tercerLugarMatch.homeTeam)!" class="bracket-match__flag" alt="" />
+              <img v-if="banderaEquipo(tercerLugarMatch.homeTeam)" :src="banderaEquipo(tercerLugarMatch.homeTeam)!"
+                class="bracket-match__flag" alt="" />
               <span v-else class="bracket-match__flag bracket-match__flag--empty">🏳️</span>
               <span class="bracket-match__team">{{ nombreEquipo(tercerLugarMatch.homeTeam) }}</span>
               <span class="bracket-match__score">{{ tercerLugarMatch.homeScore ?? '-' }}</span>
             </div>
             <div class="bracket-match__row">
-              <img v-if="banderaEquipo(tercerLugarMatch.awayTeam)" :src="banderaEquipo(tercerLugarMatch.awayTeam)!" class="bracket-match__flag" alt="" />
+              <img v-if="banderaEquipo(tercerLugarMatch.awayTeam)" :src="banderaEquipo(tercerLugarMatch.awayTeam)!"
+                class="bracket-match__flag" alt="" />
               <span v-else class="bracket-match__flag bracket-match__flag--empty">🏳️</span>
               <span class="bracket-match__team">{{ nombreEquipo(tercerLugarMatch.awayTeam) }}</span>
               <span class="bracket-match__score">{{ tercerLugarMatch.awayScore ?? '-' }}</span>
@@ -264,25 +265,22 @@ const gruposDerecha = computed(() => gruposConEquipos.value.slice(6, 12))
         </div>
       </div>
 
-      <!-- Mitad derecha (espejo) -->
       <div class="bracket-half bracket-half--derecha">
         <div v-for="grupo in mitadDerecha" :key="`d-${grupo.ronda}`" class="bracket-round">
           <span class="bracket-round__label">{{ grupo.ronda }}</span>
           <div class="bracket-round__matches">
-            <NuxtLink
-              v-for="partido in grupo.partidos"
-              :key="partido.id"
-              :to="`/matches/${partido.id}`"
-              class="bracket-match glass"
-            >
+            <NuxtLink v-for="partido in grupo.partidos" :key="partido.id" :to="`/matches/${partido.id}`"
+              class="bracket-match glass">
               <div class="bracket-match__row">
-                <img v-if="banderaEquipo(partido.homeTeam)" :src="banderaEquipo(partido.homeTeam)!" class="bracket-match__flag" alt="" />
+                <img v-if="banderaEquipo(partido.homeTeam)" :src="banderaEquipo(partido.homeTeam)!"
+                  class="bracket-match__flag" alt="" />
                 <span v-else class="bracket-match__flag bracket-match__flag--empty">🏳️</span>
                 <span class="bracket-match__team">{{ nombreEquipo(partido.homeTeam) }}</span>
                 <span class="bracket-match__score">{{ partido.homeScore ?? '-' }}</span>
               </div>
               <div class="bracket-match__row">
-                <img v-if="banderaEquipo(partido.awayTeam)" :src="banderaEquipo(partido.awayTeam)!" class="bracket-match__flag" alt="" />
+                <img v-if="banderaEquipo(partido.awayTeam)" :src="banderaEquipo(partido.awayTeam)!"
+                  class="bracket-match__flag" alt="" />
                 <span v-else class="bracket-match__flag bracket-match__flag--empty">🏳️</span>
                 <span class="bracket-match__team">{{ nombreEquipo(partido.awayTeam) }}</span>
                 <span class="bracket-match__score">{{ partido.awayScore ?? '-' }}</span>
@@ -292,22 +290,12 @@ const gruposDerecha = computed(() => gruposConEquipos.value.slice(6, 12))
         </div>
       </div>
 
-      <!-- Columna de grupos G-L -->
       <div class="groups-col">
-        <div
-          v-for="grupo in gruposDerecha"
-          :key="`g-${grupo.letra}`"
-          class="group-box"
-          :style="{ '--group-color': grupo.color }"
-        >
+        <div v-for="grupo in gruposDerecha" :key="`g-${grupo.letra}`" class="group-box"
+          :style="{ '--group-color': grupo.color }">
           <div class="group-box__flags">
-            <img
-              v-for="equipo in grupo.equipos"
-              :key="equipo.id"
-              :src="equipo.flag"
-              :alt="equipo.name"
-              class="group-box__flag"
-            />
+            <img v-for="equipo in grupo.equipos" :key="equipo.id" :src="equipo.flag" :alt="equipo.name"
+              class="group-box__flag" />
           </div>
           <span class="group-box__label">Grupo {{ grupo.letra }}</span>
         </div>
@@ -418,7 +406,6 @@ const gruposDerecha = computed(() => gruposConEquipos.value.slice(6, 12))
   animation: spin 0.8s linear infinite;
 }
 
-/* Cuadro completo: izquierda | centro | derecha */
 .bracket-tree {
   display: flex;
   align-items: center;
@@ -530,7 +517,6 @@ const gruposDerecha = computed(() => gruposConEquipos.value.slice(6, 12))
   flex-shrink: 0;
 }
 
-/* Columnas de grupos (decorativas) a los costados */
 .groups-col {
   display: flex;
   flex-direction: column;
@@ -578,7 +564,6 @@ const gruposDerecha = computed(() => gruposConEquipos.value.slice(6, 12))
   margin-top: 1px;
 }
 
-/* Centro: trofeo + marcas oficiales */
 .bracket-center {
   display: flex;
   flex-direction: column;

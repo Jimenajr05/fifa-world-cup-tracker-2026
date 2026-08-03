@@ -1,16 +1,23 @@
+// Página de predicciones del usuario, mostrando sus predicciones realizadas, el resultado real de los partidos finalizados y los puntos obtenidos por cada predicción
 <script setup lang="ts">
+// Tipo de partido
 import type { Match } from '~/composables/useMatches'
 
+// Usuario y perfil (para mostrar puntos totales)
 const { user, perfil } = useAuth()
+// Predicciones del usuario y acción de eliminar
 const { predictions, loading, error, fetchPredictionsByUser, eliminarPrediccion } = usePredictions()
+// Carga de partido por id
 const { fetchMatchById } = useMatches()
+// Diálogo de confirmación para eliminar
 const { confirmar } = useConfirm()
 
-// Guardamos los partidos asociados a cada predicción, indexados por matchId,
-// para mostrar equipos y resultado sin tener que repetir la consulta.
+// Partidos asociados a cada predicción, indexados por matchId
 const partidosPorId = ref<Record<string, Match | null>>({})
+// Indica si los partidos de las predicciones se están cargando
 const cargandoPartidos = ref(false)
 
+// Carga las predicciones del usuario y los partidos asociados a cada una
 const cargar = async () => {
   if (!user.value) return
   await fetchPredictionsByUser(user.value.uid)
@@ -27,9 +34,10 @@ const cargar = async () => {
 }
 
 onMounted(cargar)
+// Recarga las predicciones cuando cambia el usuario (login/logout)
 watch(user, cargar)
 
-// Predicciones ordenadas: primero las pendientes de resultado, luego las ya calificadas
+// Predicciones ordenadas: primero las pendientes (sin puntos calculados aún)
 const prediccionesOrdenadas = computed(() =>
   [...predictions.value].sort((a, b) => {
     if (a.pointsEarned === null && b.pointsEarned !== null) return -1
@@ -38,12 +46,14 @@ const prediccionesOrdenadas = computed(() =>
   }),
 )
 
+// Formatea un Timestamp de Firestore como fecha corta en español
 const formatearFecha = (ts: { toDate: () => Date }) =>
   ts.toDate().toLocaleString('es', { day: '2-digit', month: 'short', year: 'numeric' })
 
-// Solo se puede borrar una predicción mientras el partido siga programado
+// Indica si una predicción todavía se puede eliminar (solo si el partido sigue "Programado")
 const puedeEliminar = (matchId: string) => partidosPorId.value[matchId]?.status === 'Programado'
 
+// Confirma y elimina una predicción
 const eliminar = async (predictionId: string) => {
   const confirmado = await confirmar('¿Eliminar esta predicción?')
   if (!confirmado) return
@@ -67,30 +77,25 @@ const eliminar = async (predictionId: string) => {
       <span class="points-badge">⭐ {{ perfil?.puntos ?? 0 }} puntos totales</span>
     </header>
 
-    <!-- Estado: no logueado -->
     <div v-if="!user" class="state-box">
       <p class="state-text">Inicia sesión para ver tus predicciones.</p>
     </div>
 
-    <!-- Estado: cargando -->
     <div v-else-if="loading || cargandoPartidos" class="state-box">
       <div class="spinner" />
       <p class="state-text">Cargando tus predicciones...</p>
     </div>
 
-    <!-- Estado: error -->
     <div v-else-if="error" class="state-box">
       <p class="state-text">{{ error }}</p>
       <button class="btn-refetch" @click="cargar">Reintentar</button>
     </div>
 
-    <!-- Estado: vacío -->
     <div v-else-if="prediccionesOrdenadas.length === 0" class="state-box">
       <p class="state-text">Todavía no has hecho ninguna predicción.</p>
       <NuxtLink to="/predictions" class="btn-refetch">Ir a predicciones</NuxtLink>
     </div>
 
-    <!-- Listado -->
     <div v-else class="my-predictions__list">
       <div v-for="pred in prediccionesOrdenadas" :key="pred.id" class="prediction-row glass animate-slide-up">
         <template v-if="partidosPorId[pred.matchId]">
@@ -102,28 +107,22 @@ const eliminar = async (predictionId: string) => {
           <div class="prediction-row__details">
             <span>Tu predicción: <strong>{{ pred.homePrediction }} - {{ pred.awayPrediction }}</strong></span>
             <span v-if="partidosPorId[pred.matchId]!.status === 'Finalizado'">
-              Resultado real: <strong>{{ partidosPorId[pred.matchId]!.homeScore }} - {{ partidosPorId[pred.matchId]!.awayScore }}</strong>
+              Resultado real: <strong>{{ partidosPorId[pred.matchId]!.homeScore }} - {{
+                partidosPorId[pred.matchId]!.awayScore }}</strong>
             </span>
             <span>{{ formatearFecha(partidosPorId[pred.matchId]!.kickoff) }}</span>
           </div>
         </template>
         <div class="prediction-row__end">
-          <span
-            class="points-pill"
-            :class="{
-              'points-pill--pending': pred.pointsEarned === null,
-              'points-pill--zero': pred.pointsEarned === 0,
-              'points-pill--won': (pred.pointsEarned ?? 0) > 0,
-            }"
-          >
+          <span class="points-pill" :class="{
+            'points-pill--pending': pred.pointsEarned === null,
+            'points-pill--zero': pred.pointsEarned === 0,
+            'points-pill--won': (pred.pointsEarned ?? 0) > 0,
+          }">
             {{ pred.pointsEarned === null ? 'Pendiente' : `+${pred.pointsEarned} pts` }}
           </span>
-          <button
-            v-if="puedeEliminar(pred.matchId)"
-            class="prediction-row__delete"
-            title="Eliminar predicción"
-            @click="eliminar(pred.id)"
-          >
+          <button v-if="puedeEliminar(pred.matchId)" class="prediction-row__delete" title="Eliminar predicción"
+            @click="eliminar(pred.id)">
             ✕
           </button>
         </div>

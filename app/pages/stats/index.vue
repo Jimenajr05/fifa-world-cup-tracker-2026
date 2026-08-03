@@ -1,4 +1,6 @@
+// Página de estadísticas del torneo, mostrando estadísticas generales, máximos goleadores y tabla de posiciones
 <script setup lang="ts">
+// Estadísticas generales del torneo y acción para (re)calcularlas
 const { estadisticas, loading, error, calcularEstadisticas } = useStatistics()
 
 onMounted(calcularEstadisticas)
@@ -16,25 +18,21 @@ onMounted(calcularEstadisticas)
       <button class="btn-refetch" :disabled="loading" @click="calcularEstadisticas">Actualizar</button>
     </header>
 
-    <!-- Estado: cargando -->
     <div v-if="loading" class="state-box">
       <div class="spinner" />
       <p class="state-text">Calculando estadísticas...</p>
     </div>
 
-    <!-- Estado: error -->
     <div v-else-if="error" class="state-box">
       <p class="state-text">{{ error }}</p>
       <button class="btn-refetch" @click="calcularEstadisticas">Reintentar</button>
     </div>
 
-    <!-- Estado: vacío -->
     <div v-else-if="!estadisticas || estadisticas.partidosDisputados === 0" class="state-box">
       <p class="state-text">Todavía no hay partidos finalizados para calcular estadísticas.</p>
     </div>
 
     <template v-else>
-      <!-- Tarjetas de resumen -->
       <div class="stats-summary animate-slide-up delay-1">
         <div class="summary-card glass">
           <span class="summary-card__value">{{ estadisticas.partidosDisputados }}</span>
@@ -50,7 +48,6 @@ onMounted(calcularEstadisticas)
         </div>
       </div>
 
-      <!-- Destacados -->
       <div class="stats-highlights animate-slide-up delay-2">
         <div v-if="estadisticas.maximoGoleador" class="highlight-card glass">
           <span class="highlight-card__icon">⚽</span>
@@ -78,7 +75,6 @@ onMounted(calcularEstadisticas)
         </div>
       </div>
 
-      <!-- Tabla completa por equipo -->
       <div class="stats-table-wrap animate-slide-up delay-3">
         <table class="stats-table">
           <thead>

@@ -1,22 +1,32 @@
+// Componente de formulario para editar un equipo existente
 <script setup lang="ts">
+// Tipo de equipo existente a editar
 import type { Team } from '~/composables/useTeams'
+// Catálogos y utilidades para autocompletar datos de la selección elegida
 import { CONFEDERACIONES, GRUPOS, nombresSelecciones, buscarSeleccionPorNombre, urlBanderaPorCodigo, ENTRENADORES_POR_SELECCION, OTRO_ENTRENADOR } from '~/utils/worldCupData'
+// Extrae un mensaje de error amigable
 import { mensajeError } from '~/utils/validation'
 
+// Equipo que se está editando
 const props = defineProps<{
   team: Team
 }>()
 
+// Notifica al padre cuando se guarda o se cancela la edición
 const emit = defineEmits<{
   (e: 'saved'): void
   (e: 'cancel'): void
 }>()
 
+// Acción de actualización de equipos
 const { updateTeam } = useTeams()
 
+// Indica si se están guardando los cambios
 const guardando = ref(false)
+// Mensaje de error de la edición
 const errorEdicion = ref('')
 
+// Copia editable de los datos del equipo
 const formulario = reactive({
   name: props.team.name,
   group: props.team.group,
@@ -26,19 +36,23 @@ const formulario = reactive({
   fifaRanking: props.team.fifaRanking,
 })
 
-// Combo box de entrenador: muestra el entrenador REAL 2026 de la selección
-// elegida (si está clasificada y confirmado), más "Otro" para escribirlo a mano
+// Evita que los watchers de reinicio se disparen durante la carga inicial
 const cargado = ref(false)
+// Entrenador elegido en el select (puede ser el real o "otro")
 const entrenadorSeleccionado = ref('')
+// Indica si se debe mostrar el campo para escribir un entrenador distinto al oficial
 const escribirEntrenadorPropio = computed(() => entrenadorSeleccionado.value === OTRO_ENTRENADOR)
+// Opciones de entrenador disponibles según la selección elegida
 const entrenadoresDisponibles = computed(() => {
   const real = ENTRENADORES_POR_SELECCION[formulario.name]
   return real ? [real, OTRO_ENTRENADOR] : [OTRO_ENTRENADOR]
 })
+// Sincroniza el campo coach con el entrenador elegido en el select
 watch(entrenadorSeleccionado, (valor) => {
   if (valor) formulario.coach = valor === OTRO_ENTRENADOR ? '' : valor
 })
-// Si el usuario cambia la selección (no la carga inicial), resetea el entrenador
+
+// Reinicia la selección de entrenador cuando cambia la selección de equipo (tras la carga inicial)
 watch(() => formulario.name, () => {
   if (cargado.value) {
     entrenadorSeleccionado.value = ''
@@ -46,12 +60,13 @@ watch(() => formulario.name, () => {
   }
 })
 
+// Precarga el entrenador seleccionado según el valor actual del equipo
 entrenadorSeleccionado.value = entrenadoresDisponibles.value.includes(props.team.coach)
   ? props.team.coach
   : OTRO_ENTRENADOR
 cargado.value = true
 
-// Al elegir el nombre en el combo box, autocompleta bandera y confederación
+// Autocompleta bandera y confederación al cambiar la selección de equipo
 watch(() => formulario.name, (nombre) => {
   const seleccion = buscarSeleccionPorNombre(nombre)
   if (seleccion) {
@@ -60,6 +75,7 @@ watch(() => formulario.name, (nombre) => {
   }
 })
 
+// Guarda los cambios del equipo y notifica al padre si tiene éxito
 const guardarCambios = async () => {
   guardando.value = true
   errorEdicion.value = ''
@@ -96,7 +112,8 @@ const guardarCambios = async () => {
     </div>
     <div class="field">
       <label class="field__label">Bandera</label>
-      <input v-model="formulario.flag" type="text" class="field__input" placeholder="Se completa automáticamente" readonly />
+      <input v-model="formulario.flag" type="text" class="field__input" placeholder="Se completa automáticamente"
+        readonly />
     </div>
     <div class="field">
       <label class="field__label">Entrenador</label>
@@ -104,13 +121,8 @@ const guardarCambios = async () => {
         <option value="" disabled>Selecciona un entrenador</option>
         <option v-for="e in entrenadoresDisponibles" :key="e" :value="e">{{ e }}</option>
       </select>
-      <input
-        v-if="escribirEntrenadorPropio"
-        v-model="formulario.coach"
-        type="text"
-        class="field__input"
-        placeholder="Escribe el nombre del entrenador"
-      />
+      <input v-if="escribirEntrenadorPropio" v-model="formulario.coach" type="text" class="field__input"
+        placeholder="Escribe el nombre del entrenador" />
     </div>
     <div class="field">
       <label class="field__label">Confederación</label>

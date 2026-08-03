@@ -1,25 +1,35 @@
+// Formulario para editar los datos de un jugador
 <script setup lang="ts">
+// Tipos de jugador y de datos editables
 import type { NewPlayer, Player } from '~/composables/usePlayers'
+// Catálogos de posiciones, clubes y marcador de "nombre propio"
 import { POSICIONES_JUGADOR, CLUBES_REFERENCIA, OTRO_NOMBRE_JUGADOR as OTRO_NOMBRE } from '~/utils/worldCupData'
+// Extrae un mensaje de error amigable
 import { mensajeError } from '~/utils/validation'
 
+// Jugador a editar, nombres disponibles para el select y si se muestra el botón eliminar
 const props = defineProps<{
   player: Player
   nombresDisponibles: string[]
   showDelete?: boolean
 }>()
 
+// Notifica al padre cuando se guarda, se cancela o se solicita eliminar
 const emit = defineEmits<{
   (e: 'saved'): void
   (e: 'cancel'): void
   (e: 'delete'): void
 }>()
 
+// Acción de actualización de jugadores
 const { updatePlayer } = usePlayers()
 
+// Indica si se están guardando los cambios
 const guardando = ref(false)
+// Mensaje de error de la edición
 const errorEdicion = ref('')
 
+// Copia editable de los datos del jugador
 const formulario = reactive<Omit<NewPlayer, 'teamId'>>({
   name: props.player.name,
   number: props.player.number,
@@ -28,12 +38,16 @@ const formulario = reactive<Omit<NewPlayer, 'teamId'>>({
   titular: props.player.titular,
 })
 
+// Nombre elegido en el select (el actual del jugador, u "otro" si no está en la lista)
 const nombreSeleccionado = ref(props.nombresDisponibles.includes(props.player.name) ? props.player.name : OTRO_NOMBRE)
+// Indica si se debe mostrar el campo para escribir un nombre distinto al de la lista
 const escribirNombrePropio = computed(() => nombreSeleccionado.value === OTRO_NOMBRE)
+// Sincroniza el nombre del jugador con el elegido en el select
 watch(nombreSeleccionado, (valor) => {
   if (valor) formulario.name = valor === OTRO_NOMBRE ? '' : valor
 })
 
+// Valida el nombre y guarda los cambios del jugador
 const guardar = async () => {
   if (!formulario.name) {
     errorEdicion.value = 'El nombre del jugador es obligatorio.'
@@ -63,14 +77,8 @@ const guardar = async () => {
         <option value="" disabled>Selecciona un nombre</option>
         <option v-for="n in nombresDisponibles" :key="n" :value="n">{{ n }}</option>
       </select>
-      <input
-        v-if="escribirNombrePropio"
-        v-model="formulario.name"
-        type="text"
-        class="field__input"
-        placeholder="Escribe el nombre del jugador"
-        required
-      />
+      <input v-if="escribirNombrePropio" v-model="formulario.name" type="text" class="field__input"
+        placeholder="Escribe el nombre del jugador" required />
       <input v-model.number="formulario.number" type="number" min="1" max="26" class="field__input" />
       <select v-model="formulario.position" class="field__input">
         <option v-for="p in POSICIONES_JUGADOR" :key="p" :value="p">{{ p }}</option>

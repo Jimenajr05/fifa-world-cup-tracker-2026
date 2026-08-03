@@ -1,20 +1,29 @@
+// Archivo principal de la app, que contiene el layout global (navbar, footer, etc.) y el router-view (NuxtPage) para mostrar las páginas según la ruta.
 <script setup lang="ts">
+// Estado de sesión y acción de logout, compartidos por toda la app
 const { user, perfil, logout } = useAuth()
 
+// Controla si el menú móvil está abierto
 const mobileMenuOpen = ref(false)
+// Indica si la página se ha desplazado (para el estilo del navbar)
 const scrolled = ref(false)
 
+// Indica si la imagen de avatar falló al cargar
 const imgError = ref(false)
+// URL de la foto de perfil: prioriza la de Firestore, luego la de Firebase Auth
 const fotoUrl = computed(() => perfil.value?.foto || user.value?.photoURL || '')
+// Reinicia el estado de error cada vez que cambia la URL de la foto
 watch(fotoUrl, () => {
   imgError.value = false
 })
 
+// Inicial del nombre del usuario, usada como avatar de respaldo
 const iniciales = computed(() => {
   const base = perfil.value?.nombre || user.value?.displayName || user.value?.email || ''
   return base.trim().charAt(0).toUpperCase() || '?'
 })
 
+// Escucha el scroll (solo en cliente) para aplicar el estilo de navbar "scrolled"
 if (import.meta.client) {
   window.addEventListener('scroll', () => {
     scrolled.value = window.scrollY > 20
@@ -24,10 +33,9 @@ if (import.meta.client) {
 
 <template>
   <div class="app-wrapper">
-    <!-- ── Navbar ─────────────────────────────────────────── -->
+    <!-- Barra de navegación superior, fija y con efecto al hacer scroll -->
     <header class="navbar" :class="{ 'navbar--scrolled': scrolled }">
       <div class="navbar__inner">
-        <!-- Logo -->
         <NuxtLink to="/" class="navbar__logo">
           <span class="navbar__logo-icon">⚽</span>
           <span class="navbar__logo-text">
@@ -36,7 +44,7 @@ if (import.meta.client) {
           </span>
         </NuxtLink>
 
-        <!-- Nav links (desktop) -->
+        <!-- Enlaces de navegación (solo visibles con sesión iniciada) -->
         <nav v-if="user" class="navbar__nav">
           <NuxtLink to="/" class="navbar__link">
             Inicio
@@ -68,24 +76,19 @@ if (import.meta.client) {
 
         </nav>
 
-        <!-- User area -->
+        <!-- Avatar del usuario y botón de cerrar sesión (escritorio) -->
         <div v-if="user" class="navbar__user">
           <div class="navbar__avatar-wrap">
-            <img
-              v-if="fotoUrl && !imgError"
-              :src="fotoUrl"
-              :alt="perfil?.nombre || user.displayName || 'Avatar'"
-              class="navbar__avatar"
-              referrerpolicy="no-referrer"
-              @error="imgError = true"
-            />
+            <img v-if="fotoUrl && !imgError" :src="fotoUrl" :alt="perfil?.nombre || user.displayName || 'Avatar'"
+              class="navbar__avatar" referrerpolicy="no-referrer" @error="imgError = true" />
             <span v-else class="navbar__avatar navbar__avatar--fallback">
               {{ iniciales }}
             </span>
             <span class="navbar__avatar-ring" />
           </div>
           <button class="navbar__logout" @click="logout">
-            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"
+              stroke-linecap="round" stroke-linejoin="round">
               <path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4" />
               <polyline points="16 17 21 12 16 7" />
               <line x1="21" y1="12" x2="9" y2="12" />
@@ -94,18 +97,14 @@ if (import.meta.client) {
           </button>
         </div>
 
-        <!-- Mobile menu button -->
-        <button
-          v-if="user"
-          class="navbar__mobile-toggle"
-          @click="mobileMenuOpen = !mobileMenuOpen"
-          :aria-label="mobileMenuOpen ? 'Cerrar menú' : 'Abrir menú'"
-        >
+        <!-- Botón hamburguesa para abrir/cerrar el menú en móvil -->
+        <button v-if="user" class="navbar__mobile-toggle" @click="mobileMenuOpen = !mobileMenuOpen"
+          :aria-label="mobileMenuOpen ? 'Cerrar menú' : 'Abrir menú'">
           <span class="navbar__hamburger" :class="{ 'navbar__hamburger--open': mobileMenuOpen }" />
         </button>
       </div>
 
-      <!-- Mobile dropdown -->
+      <!-- Menú desplegable de navegación para móvil -->
       <Transition name="slide-down">
         <div v-if="mobileMenuOpen && user" class="navbar__mobile-menu">
           <NuxtLink to="/" class="navbar__mobile-link" @click="mobileMenuOpen = false">
@@ -142,12 +141,11 @@ if (import.meta.client) {
       </Transition>
     </header>
 
-    <!-- ── Main Content ──────────────────────────────────── -->
+    <!-- Contenido de la página activa según la ruta -->
     <main class="main-content">
       <NuxtPage />
     </main>
 
-    <!-- ── Footer ────────────────────────────────────────── -->
     <footer class="site-footer">
       <div class="site-footer__inner">
         <p class="site-footer__brand">
@@ -159,19 +157,18 @@ if (import.meta.client) {
       </div>
     </footer>
 
+    <!-- Diálogo de confirmación global, controlado por useConfirm -->
     <ConfirmDialog />
   </div>
 </template>
 
 <style scoped>
-/* ── App Wrapper ───────────────────────────────────────────── */
 .app-wrapper {
   display: flex;
   flex-direction: column;
   min-height: 100vh;
 }
 
-/* ── Navbar ─────────────────────────────────────────────────── */
 .navbar {
   position: sticky;
   top: 0;
@@ -199,7 +196,6 @@ if (import.meta.client) {
   justify-content: space-between;
 }
 
-/* Logo */
 .navbar__logo {
   display: flex;
   align-items: center;
@@ -235,7 +231,6 @@ if (import.meta.client) {
   vertical-align: middle;
 }
 
-/* Nav links */
 .navbar__nav {
   display: flex;
   align-items: center;
@@ -271,7 +266,6 @@ if (import.meta.client) {
   font-size: 0.9rem;
 }
 
-/* User area */
 .navbar__user {
   display: flex;
   align-items: center;
@@ -334,7 +328,6 @@ if (import.meta.client) {
   background: rgba(255, 107, 107, 0.08);
 }
 
-/* Hamburger */
 .navbar__mobile-toggle {
   display: none;
   width: 32px;
@@ -366,8 +359,13 @@ if (import.meta.client) {
   transition: transform var(--transition-base);
 }
 
-.navbar__hamburger::before { top: -6px; }
-.navbar__hamburger::after  { top:  6px; }
+.navbar__hamburger::before {
+  top: -6px;
+}
+
+.navbar__hamburger::after {
+  top: 6px;
+}
 
 .navbar__hamburger--open {
   background: transparent;
@@ -381,7 +379,6 @@ if (import.meta.client) {
   transform: translateY(-6px) rotate(-45deg);
 }
 
-/* Mobile menu */
 .navbar__mobile-menu {
   display: none;
   flex-direction: column;
@@ -411,7 +408,6 @@ if (import.meta.client) {
   color: #ff6b6b;
 }
 
-/* Slide down transition */
 .slide-down-enter-active,
 .slide-down-leave-active {
   transition: all 0.25s ease;
@@ -423,7 +419,6 @@ if (import.meta.client) {
   transform: translateY(-8px);
 }
 
-/* ── Main Content ──────────────────────────────────────────── */
 .main-content {
   flex: 1;
   width: 100%;
@@ -432,7 +427,6 @@ if (import.meta.client) {
   padding: var(--space-2xl) var(--space-xl);
 }
 
-/* ── Footer ────────────────────────────────────────────────── */
 .site-footer {
   border-top: 1px solid var(--border-subtle);
   padding: var(--space-xl) var(--space-xl);
@@ -457,7 +451,6 @@ if (import.meta.client) {
   color: var(--text-muted);
 }
 
-/* ── Responsive ────────────────────────────────────────────── */
 @media (max-width: 768px) {
   .navbar__inner {
     padding: 0 var(--space-md);

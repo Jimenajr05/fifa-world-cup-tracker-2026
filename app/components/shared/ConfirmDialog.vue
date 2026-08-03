@@ -1,8 +1,11 @@
+// Componente de diálogo de confirmación global, utilizado por useConfirm()
 <script setup lang="ts">
+// Estado global del diálogo y función para responder (confirmar/cancelar)
 const { estado, responder } = useConfirm()
 </script>
 
 <template>
+  <!-- Overlay global de confirmación, mostrado cuando useConfirm().confirmar() está pendiente -->
   <Transition name="fade">
     <div v-if="estado.visible" class="confirm-overlay" @click.self="responder(false)">
       <div class="confirm-dialog glass-strong animate-scale-in">

@@ -1,25 +1,36 @@
+// Página de listado de partidos disponibles para predecir, con filtros y búsqueda
 <script setup lang="ts">
+// Catálogos de fases y grupos, para los filtros
 import { FASES, GRUPOS } from '~/utils/worldCupData'
 
+// Partidos y estado de carga
 const { matches, loading, error, fetchMatches } = useMatches()
+// Predicciones del usuario actual
 const { predictions, fetchPredictionsByUser } = usePredictions()
+// Usuario autenticado
 const { user } = useAuth()
 
+// Texto de búsqueda libre (por selección)
 const busqueda = ref('')
+// Filtro de fase seleccionada
 const faseFiltro = ref('')
+// Filtro de grupo seleccionado
 const grupoFiltro = ref('')
 
+// Carga partidos y, si hay usuario, sus predicciones
 const cargar = async () => {
   await fetchMatches()
   if (user.value) await fetchPredictionsByUser(user.value.uid)
 }
 
 onMounted(cargar)
+// Recarga las predicciones cuando cambia el usuario (login/logout)
 watch(user, cargar)
 
-// Solo tiene sentido pronosticar partidos que aún no se han jugado
+// Partidos que aún no han comenzado (los únicos disponibles para predecir)
 const partidosProgramados = computed(() => matches.value.filter((m) => m.status === 'Programado'))
 
+// Partidos programados que cumplen con los filtros activos
 const partidosFiltrados = computed(() => {
   const texto = busqueda.value.trim().toLowerCase()
   return partidosProgramados.value.filter((m) => {
@@ -31,10 +42,10 @@ const partidosFiltrados = computed(() => {
   })
 })
 
-// Set de matchId ya pronosticados por el usuario, para pintar el badge "Ya predicho"
+// Ids de partidos que ya tienen una predicción del usuario, para mostrar el badge "Ya predicho"
 const matchIdsPredichos = computed(() => new Set(predictions.value.map((p) => p.matchId)))
 
-// Mapa matchId -> predicción, para poder mostrar el marcador que ya guardó el usuario
+// Mapa de predicción (marcador) por id de partido
 const prediccionPorMatchId = computed(() => {
   const mapa = new Map<string, { homePrediction: number; awayPrediction: number }>()
   for (const p of predictions.value) {
@@ -43,6 +54,7 @@ const prediccionPorMatchId = computed(() => {
   return mapa
 })
 
+// Formatea un Timestamp de Firestore como fecha y hora en español
 const formatearFecha = (ts: { toDate: () => Date }) =>
   ts.toDate().toLocaleString('es', { day: '2-digit', month: 'short', year: 'numeric', hour: '2-digit', minute: '2-digit' })
 </script>
@@ -58,20 +70,14 @@ const formatearFecha = (ts: { toDate: () => Date }) =>
       </div>
     </header>
 
-    <!-- Estado: no logueado -->
     <div v-if="!user" class="state-box">
       <p class="state-text">Inicia sesión para hacer tus predicciones.</p>
     </div>
 
     <template v-else>
-      <!-- Filtros -->
       <div class="predictions-filters animate-slide-up delay-1">
-        <input
-          v-model="busqueda"
-          type="text"
-          class="field__input filters__search"
-          placeholder="Buscar por selección..."
-        />
+        <input v-model="busqueda" type="text" class="field__input filters__search"
+          placeholder="Buscar por selección..." />
         <select v-model="faseFiltro" class="field__input">
           <option value="">Todas las fases</option>
           <option v-for="f in FASES" :key="f" :value="f">{{ f }}</option>
@@ -83,36 +89,29 @@ const formatearFecha = (ts: { toDate: () => Date }) =>
         <button class="btn-refetch" :disabled="loading" @click="cargar">Actualizar</button>
       </div>
 
-      <!-- Estado: cargando -->
       <div v-if="loading" class="state-box">
         <div class="spinner" />
         <p class="state-text">Cargando partidos...</p>
       </div>
 
-      <!-- Estado: error -->
       <div v-else-if="error" class="state-box">
         <p class="state-text">{{ error }}</p>
         <button class="btn-refetch" @click="cargar">Reintentar</button>
       </div>
 
-      <!-- Estado: vacío -->
       <div v-else-if="partidosFiltrados.length === 0" class="state-box">
         <p class="state-text">No hay partidos programados disponibles para pronosticar todavía.</p>
       </div>
 
-      <!-- Listado -->
       <div v-else class="predictions-list">
-        <NuxtLink
-          v-for="match in partidosFiltrados"
-          :key="match.id"
-          :to="`/predictions/${match.id}`"
-          class="prediction-card glass animate-slide-up"
-        >
+        <NuxtLink v-for="match in partidosFiltrados" :key="match.id" :to="`/predictions/${match.id}`"
+          class="prediction-card glass animate-slide-up">
           <span v-if="matchIdsPredichos.has(match.id)" class="badge badge--predicho">Ya predicho</span>
           <div class="prediction-card__teams">
             <span class="prediction-card__team">{{ match.homeTeam }}</span>
             <span v-if="prediccionPorMatchId.has(match.id)" class="prediction-card__score">
-              {{ prediccionPorMatchId.get(match.id)?.homePrediction }} - {{ prediccionPorMatchId.get(match.id)?.awayPrediction }}
+              {{ prediccionPorMatchId.get(match.id)?.homePrediction }} - {{
+                prediccionPorMatchId.get(match.id)?.awayPrediction }}
             </span>
             <span v-else class="prediction-card__vs">vs</span>
             <span class="prediction-card__team">{{ match.awayTeam }}</span>
