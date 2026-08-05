@@ -1,0 +1,477 @@
+// Página de listado de jugadores, con filtros y paginación
+<script setup lang="ts">
+// Consultas directas a Firestore para la asignación de titulares en lote
+import { collection, doc, getDocs, updateDoc } from 'firebase/firestore'
+// Catálogo de posiciones válidas
+import { POSICIONES_JUGADOR } from '~/utils/worldCupData'
+// Convocatorias oficiales por selección, para precargar plantillas
+import { CONVOCADOS_POR_SELECCION } from '~/utils/rosterData'
+// Tipo de jugador
+import type { Player } from '~/composables/usePlayers'
+
+// Usuario autenticado (controla si se muestran acciones de administración)
+const { user } = useAuth()
+// Jugadores, estado de carga y acciones de creación
+const { players, loading, error, fetchAllPlayers, createPlayer } = usePlayers()
+// Equipos registrados, para el filtro por selección
+const { teams, fetchTeams } = useTeams()
+// Goles totales por jugador, para mostrarlos en las tarjetas
+const { obtenerGolesPorJugador } = useStatistics()
+
+// Mapa de goles por id de jugador
+const golesPorJugador = ref<Map<string, number>>(new Map())
+
+// Texto de búsqueda libre (jugador, club o selección)
+const busqueda = ref('')
+// Filtro de posición seleccionada
+const posicionFiltro = ref('')
+// Filtro de equipo seleccionado
+const equipoFiltro = ref('')
+
+// Carga jugadores, equipos y goles totales
+const cargar = () => {
+  fetchAllPlayers()
+  fetchTeams()
+  obtenerGolesPorJugador().then((mapa) => { golesPorJugador.value = mapa })
+}
+
+// Mensaje a mostrar cuando no hay resultados, según si hay jugadores en absoluto o solo no coinciden los filtros
+const mensajeSinResultados = computed(() =>
+  players.value.length === 0
+    ? 'Todavía no hay jugadores registrados en ninguna selección.'
+    : 'No se encontraron jugadores con esa búsqueda.',
+)
+
+onMounted(cargar)
+
+// Mapa de equipos por id, para mostrar nombre y bandera en cada tarjeta
+const equipoPorId = computed(() => new Map(teams.value.map((t) => [t.id, t])))
+
+// Jugadores que cumplen con todos los filtros activos
+const jugadoresFiltrados = computed(() => {
+  const texto = busqueda.value.trim().toLowerCase()
+  return players.value.filter((p) => {
+    const equipo = equipoPorId.value.get(p.teamId)
+    const coincideTexto =
+      !texto ||
+      p.name.toLowerCase().includes(texto) ||
+      p.club.toLowerCase().includes(texto) ||
+      (equipo?.name.toLowerCase().includes(texto) ?? false)
+    const coincidePosicion = !posicionFiltro.value || p.position === posicionFiltro.value
+    const coincideEquipo = !equipoFiltro.value || p.teamId === equipoFiltro.value
+    return coincideTexto && coincidePosicion && coincideEquipo
+  })
+})
+
+// Cantidad de jugadores mostrados por página
+const JUGADORES_POR_PAGINA = 16
+// Página actual de la lista de jugadores
+const paginaActual = ref(1)
+
+// Vuelve a la primera página cuando cambia cualquier filtro
+watch([busqueda, posicionFiltro, equipoFiltro], () => {
+  paginaActual.value = 1
+})
+
+// Total de páginas según la cantidad de jugadores filtrados
+const totalPaginas = computed(() =>
+  Math.max(1, Math.ceil(jugadoresFiltrados.value.length / JUGADORES_POR_PAGINA)),
+)
+
+// Ajusta la página actual si queda fuera de rango tras filtrar
+watch(totalPaginas, (total) => {
+  if (paginaActual.value > total) paginaActual.value = total
+})
+
+// Jugadores de la página actual
+const jugadoresPaginados = computed(() => {
+  const inicio = (paginaActual.value - 1) * JUGADORES_POR_PAGINA
+  return jugadoresFiltrados.value.slice(inicio, inicio + JUGADORES_POR_PAGINA)
+})
+
+
+// Asigna números de camiseta a jugadores de la convocatoria que no tienen uno definido,
+// reservando el 1 para el portero cuando está disponible
+const asignarNumeros = (jugadores: typeof CONVOCADOS_POR_SELECCION[string]) => {
+  const usados = new Set(jugadores.filter((j) => j.number).map((j) => j.number as number))
+  let siguiente = 2
+  return jugadores.map((j) => {
+    if (j.number) return j
+    if (j.position === 'Portero' && !usados.has(1)) {
+      usados.add(1)
+      return { ...j, number: 1 }
+    }
+    while (usados.has(siguiente)) siguiente++
+    usados.add(siguiente)
+    return { ...j, number: siguiente }
+  })
+}
+
+// Indica si se están cargando las convocatorias oficiales
+const cargandoConvocados = ref(false)
+// Mensaje con el resultado de la última operación en lote
+const resultadoConvocados = ref('')
+// Indica si se está ejecutando la asignación de titulares en lote
+const actualizandoTitulares = ref(false)
+
+// Crea los jugadores de la convocatoria oficial para cada equipo que aún no tenga plantilla
+const cargarConvocadosOficiales = async () => {
+  cargandoConvocados.value = true
+  resultadoConvocados.value = ''
+  let creados = 0
+  let omitidos = 0
+  let fallidos = 0
+  try {
+    for (const team of teams.value) {
+      const convocatoria = CONVOCADOS_POR_SELECCION[team.name]
+      if (!convocatoria) continue
+      const yaTienePlantilla = players.value.some((p) => p.teamId === team.id)
+      if (yaTienePlantilla) {
+        omitidos += convocatoria.length
+        continue
+      }
+      for (const jugador of asignarNumeros(convocatoria)) {
+        try {
+          await createPlayer({
+            teamId: team.id,
+            name: jugador.name,
+            number: jugador.number as number,
+            position: jugador.position,
+            club: jugador.club ?? 'Sin club',
+            titular: jugador.titular,
+          })
+          creados++
+        } catch (err) {
+          console.error(`No se pudo crear ${jugador.name} (${team.name}):`, err)
+          fallidos++
+        }
+      }
+    }
+    await cargar()
+    resultadoConvocados.value = `Listo: ${creados} jugadores creados, ${omitidos} ya tenían plantilla${fallidos ? `, ${fallidos} fallaron` : ''}.`
+  } finally {
+    cargandoConvocados.value = false
+  }
+}
+
+// Asigna automáticamente los 11 titulares de cada equipo (portero + los siguientes por número)
+// para todos los equipos que tengan jugadores registrados
+const asignarTitularesEnLote = async () => {
+  actualizandoTitulares.value = true
+  resultadoConvocados.value = ''
+  let actualizados = 0
+  let fallidos = 0
+
+  try {
+    const { db: $firestore } = useFirestore()
+    const playersCol = collection($firestore, 'players')
+    const snap = await getDocs(playersCol)
+    const todosJugadores = snap.docs.map(doc => ({ id: doc.id, ...doc.data() as Omit<Player, 'id'> }))
+
+    const jugadoresPorEquipo = new Map<string, typeof todosJugadores>()
+    for (const p of todosJugadores) {
+      if (!jugadoresPorEquipo.has(p.teamId)) {
+        jugadoresPorEquipo.set(p.teamId, [])
+      }
+      jugadoresPorEquipo.get(p.teamId)!.push(p)
+    }
+
+    for (const [_, squad] of jugadoresPorEquipo.entries()) {
+      squad.sort((a, b) => a.number - b.number)
+
+      const portero = squad.find(p => p.position === 'Portero')
+      const titularesIds = new Set<string>()
+
+      if (portero) {
+        titularesIds.add(portero.id)
+      }
+
+      for (const p of squad) {
+        if (titularesIds.size >= 11) break
+        if (p.id !== portero?.id) {
+          titularesIds.add(p.id)
+        }
+      }
+
+      for (const p of squad) {
+        const isTitular = titularesIds.has(p.id)
+        if (p.titular !== isTitular) {
+          try {
+            await updateDoc(doc($firestore, 'players', p.id), { titular: isTitular })
+            actualizados++
+          } catch (err) {
+            console.error(`Error al actualizar titular para ${p.name}:`, err)
+            fallidos++
+          }
+        }
+      }
+    }
+
+    await cargar()
+    resultadoConvocados.value = `Listo: ${actualizados} jugadores actualizados como titulares en lote${fallidos ? `, ${fallidos} fallaron` : ''}.`
+  } catch (err) {
+    console.error('Error al asignar titulares en lote:', err)
+    resultadoConvocados.value = 'Error al procesar la actualización en lote.'
+  } finally {
+    actualizandoTitulares.value = false
+  }
+}
+</script>
+
+<template>
+  <div class="players-search-page animate-fade-in">
+    <header class="players-search-header animate-slide-up">
+      <h1 class="players-search-title">
+        <span class="text-gold-gradient">Jugadores</span> del torneo
+      </h1>
+      <p class="players-search-subtitle">Busca cualquier jugador convocado, de cualquier selección</p>
+    </header>
+
+    <div class="players-search-filters animate-slide-up delay-1">
+      <input v-model="busqueda" type="text" class="field__input filters__search"
+        placeholder="Buscar por jugador, club o selección..." />
+      <select v-model="posicionFiltro" class="field__input">
+        <option value="">Todas las posiciones</option>
+        <option v-for="p in POSICIONES_JUGADOR" :key="p" :value="p">{{ p }}</option>
+      </select>
+      <select v-model="equipoFiltro" class="field__input">
+        <option value="">Todas las selecciones</option>
+        <option v-for="t in teams" :key="t.id" :value="t.id">{{ t.name }}</option>
+      </select>
+      <button class="btn-refetch" @click="cargar" :disabled="loading">
+        Actualizar
+      </button>
+      <button v-if="user" class="btn-refetch" :disabled="cargandoConvocados || actualizandoTitulares"
+        @click="cargarConvocadosOficiales">
+        {{ cargandoConvocados ? 'Cargando...' : 'Cargar convocados oficiales' }}
+      </button>
+      <button v-if="user" class="btn-refetch" :disabled="cargandoConvocados || actualizandoTitulares"
+        @click="asignarTitularesEnLote">
+        {{ actualizandoTitulares ? 'Actualizando...' : 'Asignar titulares en lote' }}
+      </button>
+    </div>
+
+    <p v-if="resultadoConvocados" class="state-text">{{ resultadoConvocados }}</p>
+
+    <p v-if="!loading && !error" class="results-count">
+      {{ jugadoresFiltrados.length }} jugador{{ jugadoresFiltrados.length === 1 ? '' : 'es' }} en total
+    </p>
+
+    <div v-if="loading" class="state-box">
+      <div class="spinner" />
+      <p class="state-text">Cargando jugadores...</p>
+    </div>
+
+    <div v-else-if="error" class="state-box">
+      <p class="state-text">{{ error }}</p>
+      <button class="btn-refetch" @click="cargar">Reintentar</button>
+    </div>
+
+    <div v-else-if="jugadoresFiltrados.length === 0" class="state-box">
+      <p class="state-text">{{ mensajeSinResultados }}</p>
+    </div>
+
+    <template v-else>
+      <div class="players-grid">
+        <NuxtLink v-for="player in jugadoresPaginados" :key="player.id" :to="`/teams/${player.teamId}/players`"
+          class="player-card glass animate-slide-up">
+          <span class="player-card__number">{{ player.number }}</span>
+          <div class="player-card__info">
+            <p class="player-card__name">{{ player.name }}</p>
+            <p class="player-card__meta">
+              {{ player.position }} · {{ player.club || 'Sin club' }} ·
+              <span class="player-card__goals">{{ golesPorJugador.get(player.id) ?? 0 }} goles</span>
+            </p>
+            <p v-if="equipoPorId.get(player.teamId)" class="player-card__team">
+              <img v-if="equipoPorId.get(player.teamId)?.flag" :src="equipoPorId.get(player.teamId)?.flag"
+                :alt="equipoPorId.get(player.teamId)?.name" class="player-card__flag" />
+              {{ equipoPorId.get(player.teamId)?.name }}
+            </p>
+          </div>
+        </NuxtLink>
+      </div>
+
+      <Pagination v-model:pagina-actual="paginaActual" :total-paginas="totalPaginas" />
+    </template>
+  </div>
+</template>
+
+<style scoped>
+.players-search-page {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-xl);
+}
+
+.players-search-title {
+  font-size: clamp(1.6rem, 3vw, 2.2rem);
+  font-weight: 800;
+  letter-spacing: -0.02em;
+}
+
+.players-search-subtitle {
+  color: var(--text-secondary);
+  font-size: 0.92rem;
+  margin-top: 4px;
+}
+
+.players-search-filters {
+  display: flex;
+  gap: var(--space-md);
+  flex-wrap: wrap;
+}
+
+.results-count {
+  color: var(--text-muted);
+  font-size: 0.85rem;
+}
+
+.filters__search {
+  flex: 1;
+  min-width: 200px;
+}
+
+.field__input {
+  width: 100%;
+  min-width: 0;
+  padding: 10px 14px;
+  border: 1px solid var(--border-glass);
+  border-radius: var(--radius-md);
+  font-size: 0.9rem;
+  color: var(--text-primary);
+  background: var(--bg-surface);
+}
+
+.field__input:focus {
+  outline: none;
+  border-color: var(--gold-start);
+  box-shadow: 0 0 0 3px rgba(255, 214, 10, 0.1);
+}
+
+select.field__input {
+  appearance: none;
+  -webkit-appearance: none;
+  width: auto;
+  flex: 0 0 auto;
+  text-overflow: ellipsis;
+  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='12' viewBox='0 0 24 24' fill='none' stroke='%238b95a5' stroke-width='2.5' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpolyline points='6 9 12 15 18 9'%3E%3C/polyline%3E%3C/svg%3E");
+  background-repeat: no-repeat;
+  background-position: right 14px center;
+  padding-right: 36px;
+}
+
+.btn-refetch {
+  padding: 10px 18px;
+  border-radius: var(--radius-md);
+  background: var(--bg-surface);
+  border: 1px solid var(--border-subtle);
+  color: var(--text-secondary);
+  font-size: 0.85rem;
+  font-weight: 600;
+  transition: all var(--transition-fast);
+}
+
+.btn-refetch:hover:not(:disabled) {
+  color: var(--text-primary);
+  border-color: var(--border-glass);
+}
+
+.btn-refetch:disabled {
+  opacity: 0.6;
+  cursor: not-allowed;
+}
+
+.state-box {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: var(--space-md);
+  padding: var(--space-2xl) 0;
+  text-align: center;
+}
+
+.state-text {
+  color: var(--text-secondary);
+  font-size: 0.95rem;
+}
+
+.spinner {
+  width: 36px;
+  height: 36px;
+  border: 3px solid var(--border-glass);
+  border-top-color: var(--gold-start);
+  border-radius: 50%;
+  animation: spin 0.8s linear infinite;
+}
+
+.players-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(240px, 1fr));
+  gap: var(--space-lg);
+}
+
+.player-card {
+  display: flex;
+  align-items: center;
+  gap: var(--space-md);
+  padding: var(--space-lg);
+  border-radius: var(--radius-lg);
+  transition: transform var(--transition-base), box-shadow var(--transition-base);
+}
+
+.player-card:hover {
+  transform: translateY(-3px);
+  box-shadow: var(--shadow-md);
+}
+
+.player-card__number {
+  width: 34px;
+  height: 34px;
+  border-radius: 50%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: var(--gold-gradient);
+  color: #0a0e1a;
+  font-weight: 800;
+  font-size: 0.85rem;
+  flex-shrink: 0;
+}
+
+.player-card__info {
+  flex: 1;
+  min-width: 0;
+}
+
+.player-card__name {
+  font-size: 0.95rem;
+  font-weight: 700;
+}
+
+.player-card__meta {
+  font-size: 0.78rem;
+  color: var(--text-muted);
+  margin-top: 2px;
+}
+
+.player-card__goals {
+  color: var(--text-gold);
+  font-weight: 600;
+}
+
+.player-card__team {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 0.75rem;
+  color: var(--text-gold);
+  margin-top: 6px;
+}
+
+.player-card__flag {
+  width: 16px;
+  height: 16px;
+  border-radius: 50%;
+  object-fit: cover;
+}
+</style>
