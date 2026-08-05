@@ -16,7 +16,7 @@ export const CONFEDERACIONES = [
 ] as const
 
 // Catálogos para el módulo de Grupos y Selecciones
-export const GRUPOS = ['A', 'B', 'C', 'D', 'E', 'F', 'G', 'H', 'I', 'J', 'K', 'L'] as const
+export const GRUPOS = ['A', 'B', 'C', 'D', 'E', 'F', 'G', 'H', 'I', 'J', 'K', 'L', 'M'] as const
 
 // Catálogos para el módulo de Grupos y Selecciones
 export const GRUPO_POR_SELECCION: Record<string, (typeof GRUPOS)[number]> = {
@@ -292,13 +292,14 @@ export const NOMBRES_JUGADORES_REFERENCIA = [
 
 // Catálogos para el módulo de Entrenadores
 export const SELECCIONES_REFERENCIA: SeleccionRef[] = [
-  // CONMEBOL (6)
+  // CONMEBOL (7)
   { name: 'Argentina', code: 'ar', confederation: 'CONMEBOL' },
   { name: 'Brasil', code: 'br', confederation: 'CONMEBOL' },
   { name: 'Colombia', code: 'co', confederation: 'CONMEBOL' },
   { name: 'Ecuador', code: 'ec', confederation: 'CONMEBOL' },
   { name: 'Paraguay', code: 'py', confederation: 'CONMEBOL' },
   { name: 'Uruguay', code: 'uy', confederation: 'CONMEBOL' },
+  { name: 'Venezuela', code: 've', confederation: 'CONMEBOL' },
 
   // UEFA (16)
   { name: 'Alemania', code: 'de', confederation: 'UEFA' },
@@ -341,8 +342,9 @@ export const SELECCIONES_REFERENCIA: SeleccionRef[] = [
   { name: 'Jordania', code: 'jo', confederation: 'AFC' },
   { name: 'Uzbekistán', code: 'uz', confederation: 'AFC' },
 
-  // CONCACAF (6) — incluye los 3 países anfitriones
+  // CONCACAF (7) — incluye los 3 países anfitriones
   { name: 'Canadá', code: 'ca', confederation: 'CONCACAF' },
+  { name: 'Costa Rica', code: 'cr', confederation: 'CONCACAF' },
   { name: 'Curazao', code: 'cw', confederation: 'CONCACAF' },
   { name: 'Estados Unidos', code: 'us', confederation: 'CONCACAF' },
   { name: 'Haití', code: 'ht', confederation: 'CONCACAF' },
