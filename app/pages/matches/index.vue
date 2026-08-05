@@ -199,7 +199,7 @@ const formatearFecha = (ts: { toDate: () => Date }) =>
       </div>
       <div v-if="user" class="matches-header__actions">
         <button class="btn-refetch" :disabled="cargandoFixture" @click="cargarFixtureOficial">
-          {{ cargandoFixture ? 'Cargando...' : '⚡ Cargar fixture oficial' }}
+          {{ cargandoFixture ? 'Cargando...' : 'Cargar fixture oficial' }}
         </button>
         <button class="btn-add" @click="mostrarFormulario = !mostrarFormulario">
           {{ mostrarFormulario ? 'Cancelar' : '+ Agregar partido' }}

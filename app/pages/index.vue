@@ -39,11 +39,11 @@ const features = [
 const tarjetas = computed(() => {
   if (!resumen.value) return []
   return [
-    { etiqueta: 'Partidos jugados', valor: resumen.value.partidosJugados, icono: '⚽' },
-    { etiqueta: 'Partidos pendientes', valor: resumen.value.partidosPendientes, icono: '🗓️' },
-    { etiqueta: 'Goles anotados', valor: resumen.value.golesAnotados, icono: '🥅' },
-    { etiqueta: 'Selecciones clasificadas', valor: resumen.value.seleccionesClasificadas, icono: '🏆' },
-    { etiqueta: 'Predicciones realizadas', valor: resumen.value.totalPredicciones, icono: '🔮' },
+    { etiqueta: 'Partidos jugados', valor: resumen.value.partidosJugados},
+    { etiqueta: 'Partidos pendientes', valor: resumen.value.partidosPendientes},
+    { etiqueta: 'Goles anotados', valor: resumen.value.golesAnotados},
+    { etiqueta: 'Selecciones clasificadas', valor: resumen.value.seleccionesClasificadas},
+    { etiqueta: 'Predicciones realizadas', valor: resumen.value.totalPredicciones},
   ]
 })
 
@@ -140,7 +140,6 @@ watch(user, (u) => {
       <template v-else>
         <div class="stats-grid">
           <div v-for="t in tarjetas" :key="t.etiqueta" class="stat-card glass animate-slide-up">
-            <span class="stat-card__icon">{{ t.icono }}</span>
             <span class="stat-card__value">{{ t.valor }}</span>
             <span class="stat-card__label">{{ t.etiqueta }}</span>
           </div>

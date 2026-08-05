@@ -146,7 +146,7 @@ const eliminarJugador = async (playerId: string) => {
         </div>
       </div>
       <div class="players-header__actions">
-        <NuxtLink :to="`/teams/${id}/lineup`" class="btn-lineup">⚽ Ver alineación</NuxtLink>
+        <NuxtLink :to="`/teams/${id}/lineup`" class="btn-lineup"> Ver alineación</NuxtLink>
         <button v-if="user" class="btn-add-player" @click="mostrarFormularioJugador = !mostrarFormularioJugador">
           {{ mostrarFormularioJugador ? 'Cancelar' : '+ Agregar jugador' }}
         </button>
@@ -193,7 +193,7 @@ const eliminarJugador = async (playerId: string) => {
             <p class="player-item__name">{{ player.name }}</p>
             <p class="player-item__meta">
               {{ player.position }} · {{ player.club || 'Sin club' }} ·
-              <span class="player-item__goals">⚽ {{ golesPorJugador.get(player.id) ?? 0 }} goles</span>
+              <span class="player-item__goals"> {{ golesPorJugador.get(player.id) ?? 0 }} goles</span>
             </p>
           </div>
           <div v-if="user" class="player-item__actions">

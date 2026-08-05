@@ -138,7 +138,6 @@ const eliminar = async () => {
 
       <div class="squad-links">
         <NuxtLink :to="`/teams/${id}/players`" class="squad-link glass">
-          <span class="squad-link__icon">👕</span>
           <div class="squad-link__text">
             <p class="squad-link__title">Plantilla de jugadores</p>
             <p class="squad-link__sub">Ver, agregar, editar y eliminar jugadores de {{ team.name }}</p>
@@ -146,7 +145,6 @@ const eliminar = async () => {
           <span class="squad-link__arrow">→</span>
         </NuxtLink>
         <NuxtLink :to="`/teams/${id}/lineup`" class="squad-link glass">
-          <span class="squad-link__icon">⚽</span>
           <div class="squad-link__text">
             <p class="squad-link__title">Alineación</p>
             <p class="squad-link__sub">Ver la formación titular y los suplentes en la cancha</p>
