@@ -20,9 +20,9 @@ const mostrarAlineacionLocal = ref(false)
 // Controla si se muestra la alineación del equipo visitante
 const mostrarAlineacionVisitante = ref(false)
 // Alineación cargada del equipo local
-const alineacionLocal = ref<{ id: string; name: string; number: number; position: string }[]>([])
+const alineacionLocal = ref<{ id: string; name: string; number: number; position: string; titular: boolean }[]>([])
 // Alineación cargada del equipo visitante
-const alineacionVisitante = ref<{ id: string; name: string; number: number; position: string }[]>([])
+const alineacionVisitante = ref<{ id: string; name: string; number: number; position: string; titular: boolean }[]>([])
 // Indica si una alineación se está cargando
 const cargandoAlineacion = ref(false)
 
@@ -35,11 +35,13 @@ const PLURAL_POSICION_ALINEACION: Record<string, string> = {
 }
 
 // Agrupa una alineación por posición y ordena cada grupo por número de camiseta
-const agruparAlineacion = (jugadores: { id: string; name: string; number: number; position: string }[]) => {
+// Solo se incluyen los jugadores titulares (los 11 que forman la alineación)
+const agruparAlineacion = (jugadores: { id: string; name: string; number: number; position: string; titular: boolean }[]) => {
+  const titulares = jugadores.filter((j) => j.titular)
   return Object.entries(PLURAL_POSICION_ALINEACION).map(([posicion, etiqueta]) => ({
     posicion,
     etiqueta,
-    jugadores: jugadores.filter((j) => j.position === posicion).sort((a, b) => a.number - b.number),
+    jugadores: titulares.filter((j) => j.position === posicion).sort((a, b) => a.number - b.number),
   })).filter((grupo) => grupo.jugadores.length > 0)
 }
 
@@ -168,7 +170,6 @@ const formatearFecha = (ts: Timestamp) =>
           <div class="match-detail__side">
             <span class="match-detail__team">{{ match.homeTeam }}</span>
             <button class="lineup-btn" @click="alternarAlineacion('local')">
-              <span class="lineup-btn__icon">👕</span>
               {{ mostrarAlineacionLocal ? 'Ocultar' : 'Ver alineación' }}
             </button>
           </div>
@@ -178,7 +179,6 @@ const formatearFecha = (ts: Timestamp) =>
           <div class="match-detail__side">
             <span class="match-detail__team">{{ match.awayTeam }}</span>
             <button class="lineup-btn" @click="alternarAlineacion('visitante')">
-              <span class="lineup-btn__icon">👕</span>
               {{ mostrarAlineacionVisitante ? 'Ocultar' : 'Ver alineación' }}
             </button>
           </div>

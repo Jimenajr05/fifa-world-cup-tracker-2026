@@ -156,7 +156,7 @@ const eliminarEquipo = async (id: string) => {
       </div>
       <div v-if="user" class="teams-header__actions">
         <button class="btn-refetch" :disabled="cargandoLote" @click="cargarSeleccionesOficiales">
-          {{ cargandoLote ? 'Cargando...' : '⚡ Cargar las 48 selecciones oficiales' }}
+          {{ cargandoLote ? 'Cargando...' : 'Cargar las 48 selecciones oficiales' }}
         </button>
         <button class="btn-add" @click="mostrarFormulario = !mostrarFormulario">
           {{ mostrarFormulario ? 'Cancelar' : '+ Agregar selección' }}

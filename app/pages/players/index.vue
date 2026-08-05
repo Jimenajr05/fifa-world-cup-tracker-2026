@@ -243,11 +243,11 @@ const asignarTitularesEnLote = async () => {
       </button>
       <button v-if="user" class="btn-refetch" :disabled="cargandoConvocados || actualizandoTitulares"
         @click="cargarConvocadosOficiales">
-        {{ cargandoConvocados ? 'Cargando...' : '⚡ Cargar convocados oficiales' }}
+        {{ cargandoConvocados ? 'Cargando...' : 'Cargar convocados oficiales' }}
       </button>
       <button v-if="user" class="btn-refetch" :disabled="cargandoConvocados || actualizandoTitulares"
         @click="asignarTitularesEnLote">
-        {{ actualizandoTitulares ? 'Actualizando...' : '⚙️ Asignar titulares en lote' }}
+        {{ actualizandoTitulares ? 'Actualizando...' : 'Asignar titulares en lote' }}
       </button>
     </div>
 
@@ -280,7 +280,7 @@ const asignarTitularesEnLote = async () => {
             <p class="player-card__name">{{ player.name }}</p>
             <p class="player-card__meta">
               {{ player.position }} · {{ player.club || 'Sin club' }} ·
-              <span class="player-card__goals">⚽ {{ golesPorJugador.get(player.id) ?? 0 }}</span>
+              <span class="player-card__goals">{{ golesPorJugador.get(player.id) ?? 0 }} goles</span>
             </p>
             <p v-if="equipoPorId.get(player.teamId)" class="player-card__team">
               <img v-if="equipoPorId.get(player.teamId)?.flag" :src="equipoPorId.get(player.teamId)?.flag"
