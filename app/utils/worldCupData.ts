@@ -50,7 +50,6 @@ export const GRUPO_POR_SELECCION: Record<string, (typeof GRUPOS)[number]> = {
   Japón: 'F',
   Túnez: 'F',
   Suecia: 'F',
-  'Ganador Playoff UEFA B': 'F',
   // Grupo G
   Bélgica: 'G',
   Irán: 'G',
@@ -66,7 +65,6 @@ export const GRUPO_POR_SELECCION: Record<string, (typeof GRUPOS)[number]> = {
   Senegal: 'I',
   Noruega: 'I',
   Irak: 'I',
-  'Ganador Playoff Intercontinental 2': 'I',
   // Grupo J
   Argentina: 'J',
   Austria: 'J',
@@ -77,7 +75,6 @@ export const GRUPO_POR_SELECCION: Record<string, (typeof GRUPOS)[number]> = {
   Colombia: 'K',
   Uzbekistán: 'K',
   'RD del Congo': 'K',
-  'Ganador Playoff Intercontinental 1': 'K',
   // Grupo L
   Inglaterra: 'L',
   Croacia: 'L',
@@ -177,9 +174,6 @@ export const ENTRENADORES_POR_SELECCION: Record<string, string> = {
   Uzbekistán: 'Srečko Katanec',
   Curazao: 'Dick Advocaat',
   Haití: 'Sébastien Migné',
-  'Ganador Playoff UEFA B': 'Por definir',
-  'Ganador Playoff Intercontinental 1': 'Por definir',
-  'Ganador Playoff Intercontinental 2': 'Por definir',
 }
 
 // Catálogos para el módulo de Ranking FIFA
@@ -232,9 +226,6 @@ export const FIFA_RANKING_POR_SELECCION: Record<string, number> = {
   Curazao: 80,
   Haití: 85,
   'Nueva Zelanda': 95,
-  'Ganador Playoff UEFA B': 99,
-  'Ganador Playoff Intercontinental 1': 99,
-  'Ganador Playoff Intercontinental 2': 99,
 }
 
 // Catálogos para el módulo de Entrenadores
@@ -326,7 +317,6 @@ export const SELECCIONES_REFERENCIA: SeleccionRef[] = [
   { name: 'Suecia', code: 'se', confederation: 'UEFA' },
   { name: 'Suiza', code: 'ch', confederation: 'UEFA' },
   { name: 'Turquía', code: 'tr', confederation: 'UEFA' },
-  { name: 'Ganador Playoff UEFA B', code: 'un', confederation: 'UEFA' },
 
   // CAF (10)
   { name: 'Argelia', code: 'dz', confederation: 'CAF' },
@@ -358,8 +348,6 @@ export const SELECCIONES_REFERENCIA: SeleccionRef[] = [
   { name: 'Haití', code: 'ht', confederation: 'CONCACAF' },
   { name: 'México', code: 'mx', confederation: 'CONCACAF' },
   { name: 'Panamá', code: 'pa', confederation: 'CONCACAF' },
-  { name: 'Ganador Playoff Intercontinental 1', code: 'un', confederation: 'CONCACAF' },
-  { name: 'Ganador Playoff Intercontinental 2', code: 'un', confederation: 'CONCACAF' },
 
   // OFC (1)
   { name: 'Nueva Zelanda', code: 'nz', confederation: 'OFC' },
